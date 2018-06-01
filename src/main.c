@@ -1,12 +1,11 @@
 #include <stdio.h>
 
-#include "mgos.h"
+#include "mongoose.h"
 #include "cryptoauthlib.h"
 #include "utils.h"
 #include "cwt.h"
 #include "edhoc.h"
-#include "cbor.h"
-#include "mgos_dht.h"
+#include "tinycbor/cbor.h"
 
 #define AUDIENCE "tempSensor0"
 #define SHA256_DIGEST_SIZE 32
@@ -19,13 +18,12 @@ static const char *s_listening_address = "tcp://:8000";
 static edhoc_server_session_state edhoc_state;
 static oscore_context context;
 uint8_t state_mem[512 * 3];
-static struct mgos_dht *s_dht = NULL;
 
 uint8_t ID[64];
 uint8_t AS_ID[64] = {0x5a, 0xee, 0xc3, 0x1f, 0x9e, 0x64, 0xaa, 0xd4, 0x5a, 0xba, 0x2d, 0x36, 0x5e, 0x71, 0xe8, 0x4d, 0xee, 0x0d, 0xa3, 0x31, 0xba, 0xda, 0xb9, 0x11, 0x8a, 0x25, 0x31, 0x50, 0x1f, 0xd9, 0x86, 0x1d,
                      0x02, 0x7c, 0x99, 0x77, 0xca, 0x32, 0xd5, 0x44, 0xe6, 0x34, 0x26, 0x76, 0xef, 0x00, 0xfa, 0x43, 0x4b, 0x3a, 0xae, 0xd9, 0x9f, 0x48, 0x23, 0x75, 0x05, 0x17, 0xca, 0x33, 0x90, 0x37, 0x47, 0x53};
 
-static void http_handler(struct mg_connection *nc, int ev, void *p, void *user_data)
+static void http_handler(struct mg_connection *nc, int ev, void *p)
 {
     if (ev == MG_EV_HTTP_REQUEST)
     {
@@ -78,7 +76,7 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
     return cbor_encoder_get_buffer_size(&enc, buf);
 }
 
-static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
+static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data) {
     // Parse HTTP Message
     struct http_message *hm = (struct http_message *) ev_data;
     struct mg_str data = hm->body;
@@ -137,9 +135,9 @@ static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data, 
     mg_send_head(nc, 204, 0, "Content-Type: application/octet-stream");
 }
 
-static void temperature_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
-    int temperature = (int) mgos_dht_get_temp(s_dht);
-    int humidity = (int) mgos_dht_get_humidity(s_dht);
+static void temperature_handler(struct mg_connection* nc, int ev, void* ev_data) {
+    int temperature = 20;
+    int humidity = 50;
 
     /// Create Response
     uint8_t response[128];
@@ -166,7 +164,7 @@ static void temperature_handler(struct mg_connection* nc, int ev, void* ev_data,
     mg_send(nc, res, (int) res_len);
 }
 
-static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
+static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data) {
     struct http_message *hm = (struct http_message *) ev_data;
     bytes ciphertext = {(void*)hm->body.p, hm->body.len};
     bytes aad = {NULL, 0};
@@ -186,14 +184,11 @@ static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data, voi
 
     printf("Setting LED value to %d\n", led_value);
 
-    // Write new value to LED
-    mgos_gpio_write(25, led_value);
-
     // Respond
     mg_send_head(nc, 204, 0, NULL);
 }
 
-static void edhoc_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
+static void edhoc_handler(struct mg_connection* nc, int ev, void* ev_data) {
     struct http_message *hm = (struct http_message *) ev_data;
 
     char method[8];
@@ -388,25 +383,26 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
     free(buf);
 }
 
-enum mgos_app_init_result mgos_app_init(void)
-{
+int main(int argc, char *argv[]) {
     printf("App init...\n");
+    struct mg_mgr mgr;
+    mg_mgr_init(&mgr, NULL);
     struct mg_connection *nc;
 
-    nc = mg_bind(mgos_get_mgr(), s_listening_address, http_handler, 0);
+    nc = mg_bind(&mgr, s_listening_address, http_handler);
     if (nc == NULL)
     {
-        LOG(LL_ERROR, ("Unable to start listener at %s", s_listening_address));
+        fprintf(stderr, "Unable to start listener at %s", s_listening_address);
     }
 
     // Use HTTP Protocol
     mg_set_protocol_http_websocket(nc);
 
     // Setup endpoints
-    mg_register_http_endpoint(nc, "/authz-info", authz_info_handler, 0);
-    mg_register_http_endpoint(nc, "/.well-known/edhoc", edhoc_handler, 0);
-    mg_register_http_endpoint(nc, "/temperature", temperature_handler, 0);
-    mg_register_http_endpoint(nc, "/led", set_led_handler, 0);
+    mg_register_http_endpoint(nc, "/authz-info", authz_info_handler);
+    mg_register_http_endpoint(nc, "/.well-known/edhoc", edhoc_handler);
+    mg_register_http_endpoint(nc, "/temperature", temperature_handler);
+    mg_register_http_endpoint(nc, "/led", set_led_handler);
 
     // Allocate space for stored messages
     edhoc_state.message1.buf = state_mem;
@@ -416,6 +412,15 @@ enum mgos_app_init_result mgos_app_init(void)
     edhoc_state.shared_secret.len = 32;
 
     // Generate ID
+    ATCA_STATUS status;
+    ATCAIfaceCfg cfg = cfg_ateccx08a_i2c_default;
+    cfg.atcai2c.bus = 1;
+    cfg.atcai2c.baud = 400000;
+
+    status = atcab_init(&cfg);
+    if (status != ATCA_SUCCESS) {
+        fprintf(stderr, "ATCA: Library init failed\n");
+    }
     atcab_get_pubkey(0, ID);
     printf("RS public ID is: {X:");
     for (int i = 0; i < 32; i++)
@@ -433,14 +438,4 @@ enum mgos_app_init_result mgos_app_init(void)
         printf("Slot %i: %i\n", i, locked);
     }
     printf("\n");*/
-
-    // Configure LED actuator
-    mgos_gpio_set_mode(25, MGOS_GPIO_MODE_OUTPUT);
-    mgos_gpio_write(25, 0);
-
-    // Initialize Temperature sensor
-    if ((s_dht = mgos_dht_create(5, DHT22)) == NULL) 
-        return MGOS_APP_INIT_ERROR;
-
-    return MGOS_APP_INIT_SUCCESS;
 }

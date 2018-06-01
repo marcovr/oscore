@@ -1,0 +1,6 @@
+[submodule "mongoose"]
+	path = mongoose
+	url = https://github.com/cesanta/mongoose
+[submodule "cryptoauthlib"]
+	path = cryptoauthlib
+	url = https://github.com/MicrochipTech/cryptoauthlib.git

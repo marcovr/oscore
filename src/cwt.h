@@ -1,7 +1,7 @@
 #ifndef RS_HTTP_CWT_H
 #define RS_HTTP_CWT_H
 
-#include "cbor.h"
+#include "tinycbor/cbor.h"
 #include "types.h"
 
 typedef struct rs_key {

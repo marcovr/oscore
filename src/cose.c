@@ -1,6 +1,8 @@
+#include <stdlib.h>
+
 #include "cose.h"
 #include "utils.h"
-#include "cbor.h"
+#include "tinycbor/cbor.h"
 #include "cryptoauthlib.h"
 #include "mbedtls/ccm.h"
 #include "hkdf.h"

@@ -1,9 +1,10 @@
 //
 // Created by Urs Gerber on 08.03.18.
 //
+#include <stdlib.h>
 
 #include "cwt.h"
-#include "cbor.h"
+#include "tinycbor/cbor.h"
 #include "utils.h"
 #include "cryptoauthlib.h"
 

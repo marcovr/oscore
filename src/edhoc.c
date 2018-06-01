@@ -1,3 +1,5 @@
+#include <stdlib.h>
+
 #include "edhoc.h"
 #include "cose.h"
 #include "cryptoauthlib.h"
