@@ -7,6 +7,28 @@
 
 #define DIGEST_SIZE 32
 
+void edhoc_msg_1_free(edhoc_msg_1 *msg1) {
+    free(msg1->session_id.buf);
+    free(msg1->nonce.buf);
+    free(msg1->eph_key.buf);
+    //free(msg1);
+}
+
+void edhoc_msg_2_free(edhoc_msg_2 *msg2) {
+    free(msg2->session_id.buf);
+    free(msg2->peer_session_id.buf);
+    free(msg2->peer_nonce.buf);
+    free(msg2->peer_key.buf);
+    free(msg2->cose_enc_2.buf);
+    //free(msg2);
+}
+
+void edhoc_msg_3_free(edhoc_msg_3 *msg3) {
+    free(msg3->peer_session_id.buf);
+    free(msg3->cose_enc_3.buf);
+    //free(msg3);
+}
+
 void edhoc_deserialize_msg1(edhoc_msg_1 *msg1, uint8_t* buffer, size_t len) {
     CborParser parser;
     CborValue value;
@@ -27,6 +49,34 @@ void edhoc_deserialize_msg1(edhoc_msg_1 *msg1, uint8_t* buffer, size_t len) {
     // must free msg.session_id
     // must free msg.nonce
     // must free msg.eph_key
+}
+
+void edhoc_deserialize_msg2(edhoc_msg_2 *msg2, uint8_t* buffer, size_t len) {
+  CborParser parser;
+  CborValue value;
+
+  uint8_t* copy = buffer;
+  cbor_parser_init(copy, len, 0, &parser, &value);
+
+  CborValue element;
+  cbor_value_enter_container(&value, &element);
+
+  cbor_value_get_uint64(&element, (uint64_t *) &msg2->tag);
+  cbor_value_advance(&element);
+
+  uint8_t* peer_sess_id;
+  size_t peer_sess_id_length;
+  cbor_value_dup_byte_string(&element, &peer_sess_id, &peer_sess_id_length, &element);
+
+  uint8_t* cose_enc_2;
+  size_t cose_enc_2_length;
+  cbor_value_dup_byte_string(&element, &cose_enc_2, &cose_enc_2_length, &element);
+
+  msg2->peer_session_id = (struct bytes) { peer_sess_id, peer_sess_id_length };
+  msg2->cose_enc_2      = (struct bytes) { cose_enc_2,   cose_enc_2_length };
+
+  // must free msg.peer_session_id
+  // must free msg.cose_enc_3
 }
 
 void edhoc_deserialize_msg3(edhoc_msg_3 *msg3, uint8_t* buffer, size_t len) {
@@ -57,6 +107,24 @@ void edhoc_deserialize_msg3(edhoc_msg_3 *msg3, uint8_t* buffer, size_t len) {
     // must free msg.cose_enc_3
 }
 
+size_t edhoc_serialize_msg_1(edhoc_msg_1 *msg1, unsigned char* buffer, size_t buf_size) {
+    // Serialize
+    CborEncoder enc;
+    cbor_encoder_init(&enc, buffer, buf_size, 0);
+
+    CborEncoder ary;
+    cbor_encoder_create_array(&enc, &ary, 6);
+
+    cbor_encode_int(&ary, msg1->tag);
+    cbor_encode_byte_string(&ary, msg1->session_id.buf, msg1->session_id.len);
+    cbor_encode_byte_string(&ary, msg1->nonce.buf, msg1->nonce.len);
+    cbor_encode_byte_string(&ary, msg1->eph_key.buf, msg1->eph_key.len);
+
+    cbor_encoder_close_container(&enc, &ary);
+
+    return cbor_encoder_get_buffer_size(&enc, buffer);
+}
+
 size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, unsigned char* buffer, size_t buf_size) {
     // Compute AAD
     uint8_t aad2[DIGEST_SIZE];
@@ -65,7 +133,7 @@ size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, unsigned
     // Compute Signature
     uint8_t sig_v[256];
     size_t sig_v_len = sizeof(sig_v);
-    edhoc_msg2_sig_v(msg2, aad2, sig_v, sizeof(sig_v), &sig_v_len);
+    edhoc_msg_sig(aad2, sig_v, sizeof(sig_v), &sig_v_len);
 
     bytes b_sig_v = {sig_v, sig_v_len};
     //printf("sig_v: ");
@@ -103,7 +171,7 @@ size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, unsigned
     size_t enc_2_len = sizeof(enc_2);
     bytes b_k2 = {k2, 16};
     bytes b_iv2 = {iv2, 7};
-    edhoc_msg2_enc_0(msg2, aad2, &b_sig_v, &b_k2, &b_iv2, enc_2, sizeof(enc_2), &enc_2_len);
+    edhoc_msg_enc_0(aad2, &b_sig_v, &b_k2, &b_iv2, enc_2, sizeof(enc_2), &enc_2_len);
 
     // Serialize
     CborEncoder enc;
@@ -118,6 +186,70 @@ size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, unsigned
     cbor_encode_byte_string(&ary, msg2->peer_nonce.buf, msg2->peer_nonce.len);
     cbor_encode_byte_string(&ary, msg2->peer_key.buf, msg2->peer_key.len);
     cbor_encode_byte_string(&ary, enc_2, enc_2_len);
+
+    cbor_encoder_close_container(&enc, &ary);
+
+    return cbor_encoder_get_buffer_size(&enc, buffer);
+}
+
+size_t edhoc_serialize_msg_3(edhoc_msg_3 *msg3, msg_3_context* context, unsigned char* buffer, size_t buf_size) {
+    // Compute AAD
+    uint8_t aad3[DIGEST_SIZE];
+    edhoc_aad3(msg3, context->message1, context->message2, aad3);
+
+    // Compute Signature
+    uint8_t sig_u[256];
+    size_t sig_u_len = sizeof(sig_u);
+    edhoc_msg_sig(aad3, sig_u, sizeof(sig_u), &sig_u_len);
+
+    bytes b_sig_u = {sig_u, sig_u_len};
+    //printf("sig_v: ");
+    //phex(sig_v, sig_v_len);
+
+    // Derive keys
+    bytes other = {aad3, DIGEST_SIZE};
+
+    uint8_t context_info_k3[128];
+    size_t ci_k3_len;
+    cose_kdf_context("AES-CCM-64-64-128", 16, &other, context_info_k3, sizeof(context_info_k3), &ci_k3_len);
+
+    uint8_t context_info_iv3[128];
+    size_t ci_iv3_len;
+    cose_kdf_context("IV-Generation", 7, &other, context_info_iv3, sizeof(context_info_iv3), &ci_iv3_len);
+
+    bytes b_ci_k3 = {context_info_k3, ci_k3_len};
+    bytes b_ci_iv3 = {context_info_iv3, ci_iv3_len};
+
+    uint8_t k3[16];
+    derive_key(&context->shared_secret, &b_ci_k3, k3, sizeof(k3));
+
+    uint8_t iv3[7];
+    derive_key(&context->shared_secret, &b_ci_iv3, iv3, sizeof(iv3));
+
+    //printf("AAD2: ");
+    //phex(aad2, DIGEST_SIZE);
+    printf("K3: ");
+    phex(k3, 16);
+    printf("IV3: ");
+    phex(iv3, 7);
+
+    // Encrypt
+    uint8_t enc_3[256];
+    size_t enc_3_len = sizeof(enc_3);
+    bytes b_k3 = {k3, 16};
+    bytes b_iv3 = {iv3, 7};
+    edhoc_msg_enc_0(aad3, &b_sig_u, &b_k3, &b_iv3, enc_3, sizeof(enc_3), &enc_3_len);
+
+    // Serialize
+    CborEncoder enc;
+    cbor_encoder_init(&enc, buffer, buf_size, 0);
+
+    CborEncoder ary;
+    cbor_encoder_create_array(&enc, &ary, 6);
+
+    cbor_encode_int(&ary, msg3->tag);
+    cbor_encode_byte_string(&ary, msg3->peer_session_id.buf, msg3->peer_session_id.len);
+    cbor_encode_byte_string(&ary, enc_3, enc_3_len);
 
     cbor_encoder_close_container(&enc, &ary);
 
@@ -158,43 +290,43 @@ void edhoc_aad2(edhoc_msg_2 *msg2, bytes message1, uint8_t *out_hash) {
     atcab_sha((uint16_t) sizeof(aad2), (const uint8_t*) aad2, out_hash);
 }
 
-void edhoc_msg2_sig_v(edhoc_msg_2 *msg2, uint8_t* aad2,
+void edhoc_msg_sig(uint8_t* aad,
                       uint8_t* out, size_t out_size, size_t* out_len) {
 
     uint8_t *prot_header, *unprot_header;
     size_t prot_len = hexstring_to_buffer(&prot_header, "a10126", strlen("a10126"));
     size_t unprot_len = hexstring_to_buffer(&unprot_header, "a104524173796d6d65747269634543445341323536", strlen("a104524173796d6d65747269634543445341323536"));
 
-    cose_sign1 sig_v;
-    sig_v.payload = (bytes) {NULL, 0};
-    sig_v.protected_header = (bytes) {prot_header, prot_len};
-    sig_v.unprotected_header = (bytes) {unprot_header, unprot_len};
-    sig_v.external_aad = (bytes) {(uint8_t *) aad2, DIGEST_SIZE};
+    cose_sign1 signature;
+    signature.payload = (bytes) {NULL, 0};
+    signature.protected_header = (bytes) {prot_header, prot_len};
+    signature.unprotected_header = (bytes) {unprot_header, unprot_len};
+    signature.external_aad = (bytes) {(uint8_t *) aad, DIGEST_SIZE};
 
-    cose_encode_signed(&sig_v, out, out_size, out_len);
+    cose_encode_signed(&signature, out, out_size, out_len);
 
     free(prot_header);
     free(unprot_header);
 }
 
-void edhoc_msg2_enc_0(edhoc_msg_2 *msg2, uint8_t *aad2, bytes *sig_v, bytes *key, bytes *iv,
+void edhoc_msg_enc_0(uint8_t *aad, bytes *signature, bytes *key, bytes *iv,
                       uint8_t* out, size_t out_size, size_t* out_len) {
-    bytes eaad = {aad2, DIGEST_SIZE};
-    cose_encrypt0 enc2 = {
+    bytes eaad = {aad, DIGEST_SIZE};
+    cose_encrypt0 enc = {
             .external_aad = eaad,
-            .plaintext = *sig_v
+            .plaintext = *signature
     };
 
-    cose_encode_encrypted(&enc2, key->buf, iv->buf, out, out_size, out_len);
+    cose_encode_encrypted(&enc, key->buf, iv->buf, out, out_size, out_len);
 }
 
-void edhoc_aad3(edhoc_msg_3* msg3, bytes* message1, bytes* message2,
+void edhoc_aad3(edhoc_msg_3* msg3, bytes message1, bytes message2,
                 uint8_t* out_hash) {
 
     // Combine msg1+msg2;
-    uint8_t combined[message1->len + message2->len];
-    memcpy(combined, message1->buf, message1->len);
-    memcpy(combined+message1->len, message2->buf, message2->len);
+    uint8_t combined[message1.len + message2.len];
+    memcpy(combined, message1.buf, message1.len);
+    memcpy(combined+message1.len, message2.buf, message2.len);
 
     uint8_t digest[DIGEST_SIZE];
     atcab_sha((uint16_t) sizeof(combined), (const uint8_t*) combined, digest);

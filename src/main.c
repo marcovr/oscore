@@ -122,7 +122,7 @@ static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data) 
     // Save PoP key
     cose_key cose_pop_key;
     cwt_parse_cose_key(&payload.cnf, &cose_pop_key);
-    cwt_import_key(edhoc_state.pop_key, &cose_pop_key);
+    cwt_import_key(edhoc_state.pub_key, &cose_pop_key);
 
     // Free resources
     free(payload.cnf.buf);
@@ -321,7 +321,7 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
 
     // Compute aad3
     uint8_t aad3[SHA256_DIGEST_SIZE];
-    edhoc_aad3(&msg3, &edhoc_state.message1, &edhoc_state.message2, aad3);
+    edhoc_aad3(&msg3, edhoc_state.message1, edhoc_state.message2, aad3);
 
     // Derive k3, iv3
     bytes other = {aad3, SHA256_DIGEST_SIZE};
@@ -357,7 +357,7 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
     cose_decrypt_enc0(&msg3.cose_enc_3, k3, iv3, &b_aad3, sig_u, sizeof(sig_u), &sig_u_len);
 
     bytes b_sig_u = {sig_u, sig_u_len};
-    int verified = cose_verify_sign1(&b_sig_u, edhoc_state.pop_key, &b_aad3);
+    int verified = cose_verify_sign1(&b_sig_u, edhoc_state.pub_key, &b_aad3);
 
     if (verified != 1) {
         // Not authorized!
