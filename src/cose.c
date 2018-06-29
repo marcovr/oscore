@@ -10,7 +10,7 @@
 #define DIGEST_SIZE 32
 #define TAG_SIZE 8
 
-void cose_encode_signed(cose_sign1* sign1,
+void cose_encode_signed(cose_sign1* sign1, uint16_t key_id,
                         uint8_t* out, size_t out_size, size_t* out_len) {
     uint8_t sign_structure[256];
     size_t sign_struct_len = sizeof(sign_structure);
@@ -27,7 +27,7 @@ void cose_encode_signed(cose_sign1* sign1,
 
     // Compute signature
     uint8_t signature[64];
-    atcab_sign(0, digest, signature);
+    atcab_sign(key_id, digest, signature);
 
     // Encode sign1 structure
     CborEncoder enc;

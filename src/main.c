@@ -291,7 +291,7 @@ static void edhoc_handler_message_1(struct mg_connection* nc, int ev, void* ev_d
     };
 
     unsigned char msg_serialized[512];
-    size_t len = edhoc_serialize_msg_2(&msg2, &ctx2, msg_serialized, sizeof(msg_serialized));
+    size_t len = edhoc_serialize_msg_2(&msg2, &ctx2, 0, msg_serialized, sizeof(msg_serialized));
 
     edhoc_state.message2.len = len;
     memcpy(edhoc_state.message2.buf, msg_serialized, len);
