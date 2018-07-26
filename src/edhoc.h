@@ -1,7 +1,6 @@
 #ifndef RS_HTTP_EDHOC_H
 #define RS_HTTP_EDHOC_H
 
-#include "tinycbor/cbor.h"
 #include "types.h"
 #include "cose.h"
 

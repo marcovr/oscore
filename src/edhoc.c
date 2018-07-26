@@ -2,6 +2,7 @@
 
 #include "edhoc.h"
 #include "cose.h"
+#include "tinycbor/cbor.h"
 #include "cryptoauthlib.h"
 #include "utils.h"
 
