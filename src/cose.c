@@ -5,7 +5,7 @@
 #include "tinycbor/cbor.h"
 #include "cryptoauthlib.h"
 #include "mbedtls/ccm.h"
-#include "hkdf.h"
+#include "mbedtls/hkdf.h"
 
 #define DIGEST_SIZE 32
 #define TAG_SIZE 8
