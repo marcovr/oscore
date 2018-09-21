@@ -296,26 +296,12 @@ int cose_verify_sign1(bytes* sign1, ecc_key *peer_key, bytes* external_aad) {
     wc_Sha256Update(&sha, to_verify, to_verify_len);
     wc_Sha256Final(&sha, digest);
 
-
     int verified = 0;
     //atcab_verify_extern(digest, signature.buf, NULL, &verified);
-    char r[65];
-    char s[65];
-    char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    for(int i=0; i<32; i++){
-        r[2 * i] = hexmap[(signature.buf[i] & 0xF0) >> 4];
-        r[2 * i + 1] = hexmap[signature.buf[i] & 0x0F];
-        s[2 * i] = hexmap[(signature.buf[i + 32] & 0xF0) >> 4];
-        s[2 * i + 1] = hexmap[signature.buf[i + 32] & 0x0F];
-    }
-    r[64] = '\0';
-    s[64] = '\0';
-
-    byte sig[wc_ecc_sig_size(peer_key)];
-    word32 sigSz = sizeof(sig);
-    wc_ecc_rs_to_sig(r, s, sig, &sigSz);
-    int ret = wc_ecc_verify_hash(sig, sigSz, digest, DIGEST_SIZE, &verified, peer_key);
+    mp_int r, s;
+    mp_read_unsigned_bin (&r, signature.buf, 32);
+    mp_read_unsigned_bin (&s, signature.buf+32, 32);
+    int ret = wc_ecc_verify_hash_ex(&r, &s, digest, DIGEST_SIZE, &verified, peer_key);
 
     // Cleanup
     free(protected.buf);

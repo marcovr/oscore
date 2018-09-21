@@ -80,24 +80,11 @@ int cwt_verify(rs_cwt* cwt, bytes *eaad, ecc_key *peer_key) {
     cbor_value_dup_byte_string(&cwt->signature, &signature, &sig_len, NULL);
     
     int verified = 0;
-    //atcab_verify_extern(digest, signature, key, &verified);
-    char r[65];
-    char s[65];
-    char hexmap[] = {'0', '1', '2', '3', '4', '5', '6', '7',
-                    '8', '9', 'a', 'b', 'c', 'd', 'e', 'f'};
-    for(int i=0; i<32; i++){
-        r[2 * i] = hexmap[(signature[i] & 0xF0) >> 4];
-        r[2 * i + 1] = hexmap[signature[i] & 0x0F];
-        s[2 * i] = hexmap[(signature[i + 32] & 0xF0) >> 4];
-        s[2 * i + 1] = hexmap[signature[i + 32] & 0x0F];
-    }
-    r[64] = '\0';
-    s[64] = '\0';
-
-    byte sig[wc_ecc_sig_size(peer_key)];
-    word32 sigSz = sizeof(sig);
-    wc_ecc_rs_to_sig(r, s, sig, &sigSz);
-    wc_ecc_verify_hash(sig, sigSz, digest, sizeof(digest), &verified, peer_key);
+    //atcab_verify_extern(digest, signature.buf, NULL, &verified);
+    mp_int r, s;
+    mp_read_unsigned_bin (&r, signature, 32);
+    mp_read_unsigned_bin (&s, signature+32, 32);
+    int ret = wc_ecc_verify_hash_ex(&r, &s, digest, sizeof(digest), &verified, peer_key);
     
     free(signature);
 

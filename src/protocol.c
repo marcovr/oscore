@@ -110,18 +110,14 @@ size_t edhoc_handler_message_1(edhoc_server_session_state* ctx, const uint8_t* b
         printf("%02x", peer_eph_key[32 + i]);
     printf("}\n");
 
-    // Transform to x9.63 format and import public key
-    byte x963_peer_key[65];
-    x963_peer_key[0] = 4;
-    memcpy(x963_peer_key + 1, peer_eph_key, 64);
     ecc_key ecc_peer_key;
-    wc_ecc_import_x963(x963_peer_key, 65, &ecc_peer_key);
+    wc_ecc_import_unsigned(&ecc_peer_key, peer_eph_key, peer_eph_key+32, NULL, ECC_SECP256R1);
     
     // Compute shared secret
-    int secretLen = 32;
-    uint8_t secret[secretLen];
+    int slen = 32;
+    uint8_t secret[slen];
     //atcab_ecdh(3, peer_eph_key, secret);
-    wc_ecc_shared_secret(&ctx->eph_key, &ecc_peer_key, secret, &secretLen);
+    wc_ecc_shared_secret(&ctx->eph_key, &ecc_peer_key, secret, &slen);
 
     printf("Shared Secret: ");
     phex(secret, 32);
@@ -187,18 +183,14 @@ size_t edhoc_handler_message_2(edhoc_client_session_state* ctx, const uint8_t* b
         printf("%02x", eph_key[32 + i]);
     printf("}\n");
 
-    // Transform to x9.63 format and import public key
-    byte x963_peer_key[65];
-    x963_peer_key[0] = 4;
-    memcpy(x963_peer_key + 1, eph_key, 64);
     ecc_key ecc_peer_key;
-    wc_ecc_import_x963(x963_peer_key, 65, &ecc_peer_key);
+    wc_ecc_import_unsigned(&ecc_peer_key, eph_key, eph_key+32, NULL, ECC_SECP256R1);
 
-    int secretLen = 32;
-    uint8_t secret[secretLen];
+    int slen = 32;
+    uint8_t secret[slen];
 
     //atcab_ecdh(2, eph_key, secret);
-    wc_ecc_shared_secret(&ctx->eph_key, &ecc_peer_key, secret, &secretLen);
+    wc_ecc_shared_secret(&ctx->eph_key, &ecc_peer_key, secret, &slen);
 
     printf("Shared Secret: ");
     phex(secret, 32);
