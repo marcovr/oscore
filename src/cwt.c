@@ -85,6 +85,8 @@ int cwt_verify(rs_cwt* cwt, bytes *eaad, ecc_key *peer_key) {
     mp_read_unsigned_bin (&r, signature, 32);
     mp_read_unsigned_bin (&s, signature+32, 32);
     int ret = wc_ecc_verify_hash_ex(&r, &s, digest, sizeof(digest), &verified, peer_key);
+    if (!verified)
+        return -1;
     
     free(signature);
 

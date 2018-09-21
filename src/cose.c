@@ -12,7 +12,6 @@
 #include <wolfssl/wolfcrypt/types.h>
 #include <wolfssl/wolfcrypt/wolfmath.h>
 #include <wolfssl/wolfcrypt/aes.h>
-#include "hkdf.h"
 
 #define DIGEST_SIZE 32
 #define TAG_SIZE 8
@@ -302,6 +301,8 @@ int cose_verify_sign1(bytes* sign1, ecc_key *peer_key, bytes* external_aad) {
     mp_read_unsigned_bin (&r, signature.buf, 32);
     mp_read_unsigned_bin (&s, signature.buf+32, 32);
     int ret = wc_ecc_verify_hash_ex(&r, &s, digest, DIGEST_SIZE, &verified, peer_key);
+    if (!verified)
+        return -1;
 
     // Cleanup
     free(protected.buf);
