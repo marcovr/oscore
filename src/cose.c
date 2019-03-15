@@ -35,7 +35,6 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key key,
     wc_Sha256Update(&sha, sign_structure, sign_struct_len);
     wc_Sha256Final(&sha, digest);
 
-
     // Compute signature
     uint8_t der[72];
     uint8_t signature[64];
@@ -44,21 +43,10 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key key,
     RNG rng;
     wc_InitRng(&rng);
 
-    
-    int derSz = sizeof(der);
-    int ret = wc_ecc_sign_hash(digest, DIGEST_SIZE, der, &derSz, &rng, &key);
-    
-
-    // Convert DER to r and s
-    uint8_t rLen = der[3];
-    uint8_t sLen = der[5 + rLen];
-    memcpy(signature, der + 4 + (rLen == 32 ? 0 : 1), 32);
-    memcpy(signature + 32, der + 6 + rLen + (sLen == 32 ? 0 : 1), 32);
-
-    char r[32];
-    char s[32];
-    memcpy(r, signature, 32);
-    memcpy(s, signature + 32, 32);    
+    mp_int r, s;
+    int ret = wc_ecc_sign_hash_ex(digest, DIGEST_SIZE, &rng, &key, &r, &s);
+    mp_to_unsigned_bin_len(&r, signature, 32);
+    mp_to_unsigned_bin_len(&s, signature+32, 32);
 
     // Encode sign1 structure
     CborEncoder enc;
@@ -116,12 +104,6 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, uint8
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
     wc_AesCcmEncrypt(&aes, ciphertext, enc0->plaintext.buf, enc0->plaintext.len, iv, 7, ciphertext + enc0->plaintext.len, TAG_SIZE , aad, aad_len);
-    printf("PLAINTEXT: ");
-    phex(enc0->plaintext.buf, enc0->plaintext.len);
-    printf("CIPHERTEXT: ");
-    phex(ciphertext, enc0->plaintext.len);
-    printf("TAG: ");
-    phex(ciphertext + enc0->plaintext.len, TAG_SIZE);
 
 
     // Encode
@@ -196,9 +178,6 @@ void cose_kdf_context(const char* algorithm_id, int key_length, bytes *other, ui
 }
 
 void derive_key(bytes *input_key, bytes *info, uint8_t* out, size_t out_size) {
-    
-    //const mbedtls_md_info_t *sha256 = mbedtls_md_info_from_type(MBEDTLS_MD_SHA256);
-    //mbedtls_hkdf(sha256, NULL, 0, input_key->buf, input_key->len, info->buf, info->len, out, out_size);
     wc_HKDF(WC_HASH_TYPE_SHA256, input_key->buf, input_key->len, NULL, 0, info->buf, info->len, out, out_size);
 }
 
@@ -237,15 +216,10 @@ void cose_decrypt_enc0(bytes* enc0, uint8_t *key, uint8_t *iv, bytes* external_a
     memcpy(auth_tag, ciphertext.buf + ciphertext.len - TAG_SIZE, TAG_SIZE);
 
     // Decrypt
-
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
     wc_AesCcmDecrypt(&aes, plaintext, ciphertext.buf, sizeof(plaintext), iv, 7, auth_tag, TAG_SIZE, aad, aad_len);
-    printf("CIPHERTEXT: ");
-    phex(ciphertext.buf, sizeof(plaintext));
 
-
-    printf("PLAINTEXT: ");
     phex(plaintext, sizeof(plaintext));
 
     // Return plaintext to caller
