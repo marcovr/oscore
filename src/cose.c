@@ -3,6 +3,10 @@
 #include "cose.h"
 #include "utils.h"
 #include "tinycbor/cbor.h"
+
+#if defined(USE_CRYPTOAUTH)
+#include "cryptoauthlib.h"
+#endif
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/sha.h>
@@ -36,18 +40,19 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key key,
     wc_Sha256Final(&sha, digest);
 
     // Compute signature
-    uint8_t der[72];
     uint8_t signature[64];
-
-    //atcab_sign(key_id, digest, signature);
+#if defined(USE_CRYPTOAUTH)
+    atcab_sign(key.slot, digest, signature);
+#else
     RNG rng;
     wc_InitRng(&rng);
 
     mp_int r, s;
+    mp_init(&r); mp_init(&s);
     int ret = wc_ecc_sign_hash_ex(digest, DIGEST_SIZE, &rng, &key, &r, &s);
     mp_to_unsigned_bin_len(&r, signature, 32);
     mp_to_unsigned_bin_len(&s, signature+32, 32);
-
+#endif
     // Encode sign1 structure
     CborEncoder enc;
     cbor_encoder_init(&enc, out, out_size, 0);
@@ -272,6 +277,7 @@ int cose_verify_sign1(bytes* sign1, ecc_key *peer_key, bytes* external_aad) {
     int verified = 0;
     //atcab_verify_extern(digest, signature.buf, NULL, &verified);
     mp_int r, s;
+    mp_init(&r); mp_init(&s);
     mp_read_unsigned_bin (&r, signature.buf, 32);
     mp_read_unsigned_bin (&s, signature.buf+32, 32);
     int ret = wc_ecc_verify_hash_ex(&r, &s, digest, DIGEST_SIZE, &verified, peer_key);

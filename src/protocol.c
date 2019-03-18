@@ -6,34 +6,45 @@
 #include "cose.h"
 #include "edhoc.h"
 #include "tinycbor/cbor.h"
+
+#if defined(USE_CRYPTOAUTH)
+#include "cryptoauthlib.h"
+#endif
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/random.h>
 
 
 size_t initiate_edhoc(edhoc_client_session_state* ctx, uint8_t* out, size_t out_size) {
-    // Initialize random generator
-    RNG rng;
-    wc_InitRng(&rng);
-
     // Generate random session id
     uint8_t session_id[32];
-    //atcab_random(session_id);
-    wc_RNG_GenerateBlock(&rng, session_id, 32);
+#if defined(USE_CRYPTOAUTH)
+    atcab_random(session_id);
+#else
+    RNG rng;
+    wc_InitRng(&rng);
+    wc_RNG_GenerateBlock(&rng, session_id, 2);
+#endif
     ctx->session_id = (bytes){ session_id, 2 };
 
     // Generate nonce
     uint8_t nonce[32];
-    //atcab_random(nonce);
-    wc_RNG_GenerateBlock(&rng, nonce, 32);
-
+#if defined(USE_CRYPTOAUTH)
+    atcab_random(nonce);
+#else
+    wc_RNG_GenerateBlock(&rng, nonce, 8);
+#endif
     // Generate session key
-    //atcab_genkey(2, session_key);
+    byte eph_key_pub[64];
+#if defined(USE_CRYPTOAUTH)
+    atcab_genkey(2, eph_key_pub);
+    ctx->eph_key.slot = 2;
+#else
     wc_ecc_init(&ctx->eph_key);
     wc_ecc_make_key(&rng, 32, &ctx->eph_key);
-    byte eph_key_pub[64];
     int coordLen = 32;
     wc_ecc_export_public_raw(&ctx->eph_key, eph_key_pub, &coordLen, eph_key_pub + 32, &coordLen);
+#endif
     // Encode session key
     uint8_t enc_sess_key[256];
     size_t n;
@@ -71,30 +82,36 @@ size_t edhoc_handler_message_1(edhoc_server_session_state* ctx, const uint8_t* b
     ctx->message1.len = in_len;
     memcpy(ctx->message1.buf, buffer_in, in_len);
 
+    uint8_t session_id[32];
     // Initialize random generator
+#if defined(USE_CRYPTOAUTH)
+    atcab_random(session_id);
+#else
     RNG rng;
     wc_InitRng(&rng);
-
-    // Generate random session id
-    uint8_t session_id[32];
-    //atcab_random(session_id);
     wc_RNG_GenerateBlock(&rng, session_id, 32);
+#endif
     ctx->session_id = (bytes){ session_id, 2 };
 
     // Generate nonce
     uint8_t nonce[32];
-    //atcab_random(nonce);
+#if defined(USE_CRYPTOAUTH)
+    atcab_random(nonce);
+#else
     wc_RNG_GenerateBlock(&rng, nonce, 32);
+#endif
 
     // Generate session key
-    //atcab_genkey(3, session_key);
-
+    byte eph_key_pub[64];
+#if defined(USE_CRYPTOAUTH)
+    atcab_genkey(3, eph_key_pub);
+    ctx->eph_key.slot = 3;
+#else
     wc_ecc_init(&ctx->eph_key);
     wc_ecc_make_key(&rng, 32, &ctx->eph_key);
-    byte eph_key_pub[64];
     int coordLen = 32;
     wc_ecc_export_public_raw(&ctx->eph_key, eph_key_pub, &coordLen, eph_key_pub + 32, &coordLen);
-    
+#endif
     // Decode peer key
     cose_key cose_eph_key;
     cwt_parse_cose_key(&msg1.eph_key, &cose_eph_key);
@@ -110,14 +127,16 @@ size_t edhoc_handler_message_1(edhoc_server_session_state* ctx, const uint8_t* b
         printf("%02x", peer_eph_key[32 + i]);
     printf("}\n");
 
-    ecc_key ecc_peer_key;
-    wc_ecc_import_unsigned(&ecc_peer_key, peer_eph_key, peer_eph_key+32, NULL, ECC_SECP256R1);
-    
     // Compute shared secret
     int slen = 32;
     uint8_t secret[slen];
-    //atcab_ecdh(3, peer_eph_key, secret);
+#if defined(USE_CRYPTOAUTH)
+    atcab_ecdh(3, peer_eph_key, secret);
+#else
+    ecc_key ecc_peer_key;
+    wc_ecc_import_unsigned(&ecc_peer_key, peer_eph_key, peer_eph_key+32, NULL, ECC_SECP256R1);
     wc_ecc_shared_secret(&ctx->eph_key, &ecc_peer_key, secret, &slen);
+#endif
 
     printf("Shared Secret: ");
     phex(secret, 32);
@@ -183,15 +202,15 @@ size_t edhoc_handler_message_2(edhoc_client_session_state* ctx, const uint8_t* b
         printf("%02x", eph_key[32 + i]);
     printf("}\n");
 
-    ecc_key ecc_peer_key;
-    wc_ecc_import_unsigned(&ecc_peer_key, eph_key, eph_key+32, NULL, ECC_SECP256R1);
-
     int slen = 32;
     uint8_t secret[slen];
-
-    //atcab_ecdh(2, eph_key, secret);
+#if defined(USE_CRYPTOAUTH)
+    atcab_ecdh(2, eph_key, secret);
+#else
+    ecc_key ecc_peer_key;
+    wc_ecc_import_unsigned(&ecc_peer_key, eph_key, eph_key+32, NULL, ECC_SECP256R1);
     wc_ecc_shared_secret(&ctx->eph_key, &ecc_peer_key, secret, &slen);
-
+#endif
     printf("Shared Secret: ");
     phex(secret, 32);
 
