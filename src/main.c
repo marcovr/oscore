@@ -1,12 +1,11 @@
 #include <stdio.h>
 
-#include "mgos.h"
+#include "mongoose.h"
 #include "cryptoauthlib.h"
 #include "utils.h"
 #include "cwt.h"
 #include "edhoc.h"
-#include "cbor.h"
-#include "mgos_dht.h"
+#include "tinycbor/cbor.h"
 
 #define AUDIENCE "tempSensor0"
 #define SHA256_DIGEST_SIZE 32
@@ -19,13 +18,12 @@ static const char *s_listening_address = "tcp://:8000";
 static edhoc_server_session_state edhoc_state;
 static oscore_context context;
 uint8_t state_mem[512 * 3];
-static struct mgos_dht *s_dht = NULL;
 
 uint8_t ID[64];
 uint8_t AS_ID[64] = {0x5a, 0xee, 0xc3, 0x1f, 0x9e, 0x64, 0xaa, 0xd4, 0x5a, 0xba, 0x2d, 0x36, 0x5e, 0x71, 0xe8, 0x4d, 0xee, 0x0d, 0xa3, 0x31, 0xba, 0xda, 0xb9, 0x11, 0x8a, 0x25, 0x31, 0x50, 0x1f, 0xd9, 0x86, 0x1d,
                      0x02, 0x7c, 0x99, 0x77, 0xca, 0x32, 0xd5, 0x44, 0xe6, 0x34, 0x26, 0x76, 0xef, 0x00, 0xfa, 0x43, 0x4b, 0x3a, 0xae, 0xd9, 0x9f, 0x48, 0x23, 0x75, 0x05, 0x17, 0xca, 0x33, 0x90, 0x37, 0x47, 0x53};
 
-static void http_handler(struct mg_connection *nc, int ev, void *p, void *user_data)
+static void http_handler(struct mg_connection *nc, int ev, void *p)
 {
     if (ev == MG_EV_HTTP_REQUEST)
     {
@@ -37,7 +35,6 @@ static void http_handler(struct mg_connection *nc, int ev, void *p, void *user_d
 }
 
 static void compute_oscore_context() {
-    printf("Computing OSCORE Context...\n");
     /// Compute OSCORE Context
     uint8_t exchange_hash[SHA256_DIGEST_SIZE];
     oscore_exchange_hash(&edhoc_state.message1, &edhoc_state.message2, &edhoc_state.message3, exchange_hash);
@@ -53,16 +50,16 @@ static void compute_oscore_context() {
     // Master Salt
     uint8_t ci_salt[128];
     size_t ci_salt_len;
-    cose_kdf_context("EDHOC OSCORE Master Salt", 8, &ex_hash, ci_salt, sizeof(ci_salt), &ci_salt_len);
+    cose_kdf_context("EDHOC OSCORE Master Salt", 7, &ex_hash, ci_salt, sizeof(ci_salt), &ci_salt_len);
     bytes b_ci_salt = {ci_salt, ci_salt_len};
     
     derive_key(&edhoc_state.shared_secret, &b_ci_secret, context.master_secret, 16);
-    derive_key(&edhoc_state.shared_secret, &b_ci_salt, context.master_salt, 8);
-    printf("Done\n");
-    //printf("MASTER SECRET: ");
-    //phex(context.master_secret, 16);
-    //printf("MASTER SALT: ");
-    //phex(context.master_salt, 8);
+    derive_key(&edhoc_state.shared_secret, &b_ci_salt, context.master_salt, 7);
+    
+    printf("MASTER SECRET: ");
+    phex(context.master_secret, 16);
+    printf("MASTER SALT: ");
+    phex(context.master_salt, 7);
 }
 
 static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
@@ -79,26 +76,22 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
     return cbor_encoder_get_buffer_size(&enc, buf);
 }
 
-static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
+static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data) {
     // Parse HTTP Message
     struct http_message *hm = (struct http_message *) ev_data;
     struct mg_str data = hm->body;
 
-    //printf("Received CWT: ");
-    //phex((void*)data.p, data.len);
+    printf("Received CWT: ");
+    phex((void*)data.p, data.len);
 
-    printf("Parsing CWT...\n");
     // Parse CWT
     rs_cwt cwt;
     cwt_parse(&cwt, (void*) data.p, data.len);
-    printf("Done parsing CWT...\n");
 
     // Verify CWT
     bytes eaad = {.buf = NULL, .len = 0};
 
-    printf("Verifying CWT...\n");
     int verified = cwt_verify(&cwt, &eaad, AS_ID);
-    printf("Verified CWT...\n");
 
     if (verified != 1) {
         // Not authorized!
@@ -129,7 +122,7 @@ static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data, 
     // Save PoP key
     cose_key cose_pop_key;
     cwt_parse_cose_key(&payload.cnf, &cose_pop_key);
-    cwt_import_key(edhoc_state.pop_key, &cose_pop_key);
+    cwt_import_key(edhoc_state.pub_key, &cose_pop_key);
 
     // Free resources
     free(payload.cnf.buf);
@@ -138,17 +131,13 @@ static void authz_info_handler(struct mg_connection* nc, int ev, void* ev_data, 
     free(cose_pop_key.x.buf);
     free(cose_pop_key.y.buf);
 
-    printf("Sending Upload Response...\n");
     // Send response
-    mg_send_head(nc, 201, 0, "Content-Type: application/octet-stream");
+    mg_send_head(nc, 204, 0, "Content-Type: application/octet-stream");
 }
 
-static void temperature_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
-    int temperature = (int) mgos_dht_get_temp(s_dht);
-    int humidity = (int) mgos_dht_get_humidity(s_dht);
-
-    //printf("Humidity: %d", humidity);
-    //printf("Temperature: %d", temperature);
+static void temperature_handler(struct mg_connection* nc, int ev, void* ev_data) {
+    int temperature = 20;
+    int humidity = 50;
 
     /// Create Response
     uint8_t response[128];
@@ -166,27 +155,16 @@ static void temperature_handler(struct mg_connection* nc, int ev, void* ev_data,
     size_t len = cbor_encoder_get_buffer_size(&enc, response);
 
     /// Encrypt response
-    uint8_t* prot_header;
-    size_t prot_len = hexstring_to_buffer(&prot_header, "a1010c", strlen("a1010c"));
-    bytes b_prot_header = {prot_header, prot_len};
-
-    cose_encrypt0 enc_response = {
-        .plaintext = (bytes) {response, len},
-        .protected_header = b_prot_header,
-        .external_aad = {NULL, 0}
-    };
-
+    cose_encrypt0 enc_response = {.plaintext = (bytes) {response, len}, .external_aad = {NULL, 0}};
     uint8_t res[256];
     size_t res_len;
-    cose_encode_encrypted(&enc_response, context.master_secret, context.master_salt, 7, res, sizeof(res), &res_len);
+    cose_encode_encrypted(&enc_response, context.master_secret, context.master_salt, res, sizeof(res), &res_len);
 
     mg_send_head(nc, 200, (int64_t) res_len, "Content-Type: application/octet-stream");
     mg_send(nc, res, (int) res_len);
-
-    free(prot_header);
 }
 
-static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
+static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data) {
     struct http_message *hm = (struct http_message *) ev_data;
     bytes ciphertext = {(void*)hm->body.p, hm->body.len};
     bytes aad = {NULL, 0};
@@ -194,7 +172,7 @@ static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data, voi
     // Decrypt payload
     uint8_t payload[32];
     size_t payload_length = 0;
-    cose_decrypt_enc0(&ciphertext, context.master_secret, context.master_salt, 7, &aad, payload, sizeof(payload), &payload_length);
+    cose_decrypt_enc0(&ciphertext, context.master_secret, context.master_salt, &aad, payload, sizeof(payload), &payload_length);
 
     // Parse payload
     CborParser parser;
@@ -204,16 +182,13 @@ static void set_led_handler(struct mg_connection* nc, int ev, void* ev_data, voi
     int led_value = 0;
     cbor_value_get_int(&val, &led_value);
 
-    //printf("Setting LED value to %d\n", led_value);
-
-    // Write new value to LED
-    mgos_gpio_write(25, led_value);
+    printf("Setting LED value to %d\n", led_value);
 
     // Respond
     mg_send_head(nc, 204, 0, NULL);
 }
 
-static void edhoc_handler(struct mg_connection* nc, int ev, void* ev_data, void *user_data) {
+static void edhoc_handler(struct mg_connection* nc, int ev, void* ev_data) {
     struct http_message *hm = (struct http_message *) ev_data;
 
     char method[8];
@@ -224,8 +199,8 @@ static void edhoc_handler(struct mg_connection* nc, int ev, void* ev_data, void 
         return;
     }
 
-    //printf("Received EDHOC MSG: ");
-    //phex((void*)hm->body.p, hm->body.len);
+    printf("Received EDHOC MSG: ");
+    phex((void*)hm->body.p, hm->body.len);
 
     CborParser parser;
     CborValue ary;
@@ -250,7 +225,6 @@ static void edhoc_handler(struct mg_connection* nc, int ev, void* ev_data, void 
 }
 
 static void edhoc_handler_message_1(struct mg_connection* nc, int ev, void* ev_data) {
-    printf("Received EDHOC MSG 1...\n");
     struct http_message *hm = (struct http_message *) ev_data;
 
     // Read msg1
@@ -270,11 +244,9 @@ static void edhoc_handler_message_1(struct mg_connection* nc, int ev, void* ev_d
     uint8_t nonce[32];
     atcab_random(nonce);
 
-    printf("Generating session key...\n");
     // Generate session key
     uint8_t session_key[64];
     atcab_genkey(1, session_key);
-    printf("Done\n");
 
     // Compute shared secret
     cose_key cose_eph_key;
@@ -283,21 +255,19 @@ static void edhoc_handler_message_1(struct mg_connection* nc, int ev, void* ev_d
     uint8_t eph_key[64];
     cwt_import_key(eph_key, &cose_eph_key);
 
-    /*printf("Party Ephemeral Key is: {X:");
+    printf("Party Ephemeral Key is: {X:");
     for (int i = 0; i < 32; i++)
         printf("%02x", eph_key[i]);
     printf(", Y:");
     for (int i = 0; i < 32; i++)
         printf("%02x", eph_key[32 + i]);
-    printf("}\n");*/
+    printf("}\n");
 
-    printf("Computing shared secret...\n");
     uint8_t secret[32];
     atcab_ecdh(1, eph_key, secret);
-    printf("Done\n");
 
-    //printf("Shared Secret: ");
-    //phex(secret, 32);
+    printf("Shared Secret: ");
+    phex(secret, 32);
 
     // Save shared secret to state
     memcpy(edhoc_state.shared_secret.buf, secret, 32);
@@ -321,26 +291,24 @@ static void edhoc_handler_message_1(struct mg_connection* nc, int ev, void* ev_d
     };
 
     unsigned char msg_serialized[512];
-    size_t len = edhoc_serialize_msg_2(&msg2, &ctx2, msg_serialized, sizeof(msg_serialized));
+    size_t len = edhoc_serialize_msg_2(&msg2, &ctx2, 0, msg_serialized, sizeof(msg_serialized));
 
     edhoc_state.message2.len = len;
     memcpy(edhoc_state.message2.buf, msg_serialized, len);
 
-    //printf("Sending EDHOC MSG: ");
-    //phex(msg_serialized, len);
+    printf("Sending EDHOC MSG: ");
+    phex(msg_serialized, len);
 
     // Cleanup
     free(msg1.session_id.buf);
     free(msg1.nonce.buf);
     free(msg1.eph_key.buf);
 
-    printf("Sending EDHOC MSG 2...\n");
     mg_send_head(nc, 200, len, "Content-Type: application/octet-stream");
     mg_send(nc, msg_serialized, len);
 }
 
 static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_data) {
-    printf("Received EDHOC MSG 3...\n");
     struct http_message *hm = (struct http_message *) ev_data;
 
     // Save message3 for later
@@ -353,7 +321,7 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
 
     // Compute aad3
     uint8_t aad3[SHA256_DIGEST_SIZE];
-    edhoc_aad3(&msg3, &edhoc_state.message1, &edhoc_state.message2, aad3);
+    edhoc_aad3(&msg3, edhoc_state.message1, edhoc_state.message2, aad3);
 
     // Derive k3, iv3
     bytes other = {aad3, SHA256_DIGEST_SIZE};
@@ -364,7 +332,7 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
 
     uint8_t context_info_iv3[128];
     size_t ci_iv3_len;
-    cose_kdf_context("IV-Generation", 13, &other, context_info_iv3, sizeof(context_info_iv3), &ci_iv3_len);
+    cose_kdf_context("IV-Generation", 7, &other, context_info_iv3, sizeof(context_info_iv3), &ci_iv3_len);
 
     bytes b_ci_k3 = {context_info_k3, ci_k3_len};
     bytes b_ci_iv3 = {context_info_iv3, ci_iv3_len};
@@ -372,29 +340,24 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
     uint8_t k3[16];
     derive_key(&edhoc_state.shared_secret, &b_ci_k3, k3, sizeof(k3));
 
-    uint8_t iv3[13];
+    uint8_t iv3[7];
     derive_key(&edhoc_state.shared_secret, &b_ci_iv3, iv3, sizeof(iv3));
 
     // printf("AAD3: ");
     // phex(aad3, SHA256_DIGEST_SIZE);
-    // printf("K3: ");
-    // phex(k3, 16);
-    // printf("IV3: ");
-    // phex(iv3, 13);
+    printf("K3: ");
+    phex(k3, 16);
+    printf("IV3: ");
+    phex(iv3, 7);
 
     bytes b_aad3 = {aad3, SHA256_DIGEST_SIZE};
 
     uint8_t sig_u[256];
     size_t sig_u_len;
-
-    printf("Decrypting MSG 3...\n");
-    cose_decrypt_enc0(&msg3.cose_enc_3, k3, iv3, 13, &b_aad3, sig_u, sizeof(sig_u), &sig_u_len);
-    printf("Done\n");
+    cose_decrypt_enc0(&msg3.cose_enc_3, k3, iv3, &b_aad3, sig_u, sizeof(sig_u), &sig_u_len);
 
     bytes b_sig_u = {sig_u, sig_u_len};
-    printf("Verifying MSG 3...\n");
-    int verified = cose_verify_sign1(&b_sig_u, edhoc_state.pop_key, &b_aad3);
-    printf("Done\n");
+    int verified = cose_verify_sign1(&b_sig_u, edhoc_state.pub_key, &b_aad3);
 
     if (verified != 1) {
         // Not authorized!
@@ -412,7 +375,6 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
     free(msg3.cose_enc_3.buf);
 
     // Send response (OK)
-    printf("Sending Response\n");
     uint8_t *buf;
     size_t buf_len = hexstring_to_buffer(&buf, "81624f4b", strlen("81624f4b"));
     mg_send_head(nc, 201, (int64_t) buf_len, "Content-Type: application/octet-stream");
@@ -421,25 +383,26 @@ static void edhoc_handler_message_3(struct mg_connection* nc, int ev, void* ev_d
     free(buf);
 }
 
-enum mgos_app_init_result mgos_app_init(void)
-{
+int main(int argc, char *argv[]) {
     printf("App init...\n");
+    struct mg_mgr mgr;
+    mg_mgr_init(&mgr, NULL);
     struct mg_connection *nc;
 
-    nc = mg_bind(mgos_get_mgr(), s_listening_address, http_handler, 0);
+    nc = mg_bind(&mgr, s_listening_address, http_handler);
     if (nc == NULL)
     {
-        LOG(LL_ERROR, ("Unable to start listener at %s", s_listening_address));
+        fprintf(stderr, "Unable to start listener at %s", s_listening_address);
     }
 
     // Use HTTP Protocol
     mg_set_protocol_http_websocket(nc);
 
     // Setup endpoints
-    mg_register_http_endpoint(nc, "/authz-info", authz_info_handler, 0);
-    mg_register_http_endpoint(nc, "/.well-known/edhoc", edhoc_handler, 0);
-    mg_register_http_endpoint(nc, "/temperature", temperature_handler, 0);
-    mg_register_http_endpoint(nc, "/led", set_led_handler, 0);
+    mg_register_http_endpoint(nc, "/authz-info", authz_info_handler);
+    mg_register_http_endpoint(nc, "/.well-known/edhoc", edhoc_handler);
+    mg_register_http_endpoint(nc, "/temperature", temperature_handler);
+    mg_register_http_endpoint(nc, "/led", set_led_handler);
 
     // Allocate space for stored messages
     edhoc_state.message1.buf = state_mem;
@@ -449,6 +412,15 @@ enum mgos_app_init_result mgos_app_init(void)
     edhoc_state.shared_secret.len = 32;
 
     // Generate ID
+    ATCA_STATUS status;
+    ATCAIfaceCfg cfg = cfg_ateccx08a_i2c_default;
+    cfg.atcai2c.bus = 1;
+    cfg.atcai2c.baud = 400000;
+
+    status = atcab_init(&cfg);
+    if (status != ATCA_SUCCESS) {
+        fprintf(stderr, "ATCA: Library init failed\n");
+    }
     atcab_get_pubkey(0, ID);
     printf("RS public ID is: {X:");
     for (int i = 0; i < 32; i++)
@@ -466,14 +438,4 @@ enum mgos_app_init_result mgos_app_init(void)
         printf("Slot %i: %i\n", i, locked);
     }
     printf("\n");*/
-
-    // Configure LED actuator
-    mgos_gpio_set_mode(25, MGOS_GPIO_MODE_OUTPUT);
-    mgos_gpio_write(25, 0);
-
-    // Initialize Temperature sensor
-    if ((s_dht = mgos_dht_create(5, DHT22)) == NULL) 
-        return MGOS_APP_INIT_ERROR;
-
-    return MGOS_APP_INIT_SUCCESS;
 }

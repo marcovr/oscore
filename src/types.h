@@ -3,20 +3,27 @@
 
 #include <stdint.h>
 #include <stddef.h>
+#include <wolfssl/options.h>
+#include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/ecc.h>
 
 typedef struct bytes {
     uint8_t * buf;
     size_t len;
 } bytes;
 
-typedef struct edhoc_server_session_state {
+struct edhoc_session_state {
+    ecc_key key;
+    ecc_key peer_key;
+    ecc_key eph_key;
     bytes session_id;
-    uint8_t pop_key[64];
     bytes shared_secret;
     bytes message1;
     bytes message2;
     bytes message3;
-} edhoc_server_session_state;
+};
+typedef struct edhoc_session_state edhoc_server_session_state;
+typedef struct edhoc_session_state edhoc_client_session_state;
 
 typedef struct oscore_context {
     uint8_t master_secret[16];

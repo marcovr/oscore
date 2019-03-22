@@ -1,11 +1,15 @@
 //
 // Created by Urs Gerber on 08.03.18.
 //
+#include <stdlib.h>
 
 #include "cwt.h"
-#include "cbor.h"
+#include "tinycbor/cbor.h"
+#include <wolfssl/options.h>
+#include <wolfssl/wolfcrypt/settings.h>
+#include <wolfssl/wolfcrypt/random.h>
+#include <wolfssl/wolfcrypt/ecc.h>
 #include "utils.h"
-#include "cryptoauthlib.h"
 
 #define CBOR_LABEL_COSE_KEY 25
 #define CBOR_LABEL_AUDIENCE 3
@@ -36,7 +40,7 @@ void cwt_parse(rs_cwt* cwt, uint8_t* encoded, size_t len) {
     cwt->signature = elem;
 }
 
-int cwt_verify(rs_cwt* cwt, bytes *eaad, uint8_t *key) {
+int cwt_verify(rs_cwt* cwt, bytes *eaad, ecc_key *peer_key) {
     CborEncoder enc;
     uint8_t buffer[256];
     cbor_encoder_init(&enc, buffer, 256, 0);
@@ -64,15 +68,25 @@ int cwt_verify(rs_cwt* cwt, bytes *eaad, uint8_t *key) {
 
     // Compute digest
     uint8_t digest[32];
-    atcab_sha((uint16_t) buf_len, (const uint8_t*) buffer, digest);
+    //atcab_sha((uint16_t) buf_len, (const uint8_t*) buffer, digest);
+    Sha256 sha;
+    wc_InitSha256(&sha);
+    wc_Sha256Update(&sha, buffer, buf_len);
+    wc_Sha256Final(&sha, digest);
 
     // Extract Signature
     uint8_t* signature;
     size_t sig_len;
     cbor_value_dup_byte_string(&cwt->signature, &signature, &sig_len, NULL);
     
-    bool verified = 0;
-    atcab_verify_extern(digest, signature, key, &verified);
+    int verified = 0;
+    //atcab_verify_extern(digest, signature.buf, NULL, &verified);
+    mp_int r, s;
+    mp_read_unsigned_bin (&r, signature, 32);
+    mp_read_unsigned_bin (&s, signature+32, 32);
+    int ret = wc_ecc_verify_hash_ex(&r, &s, digest, sizeof(digest), &verified, peer_key);
+    if (!verified)
+        return -1;
     
     free(signature);
 
