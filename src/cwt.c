@@ -40,7 +40,7 @@ void cwt_parse(rs_cwt* cwt, uint8_t* encoded, size_t len) {
     cwt->signature = elem;
 }
 
-int cwt_verify(rs_cwt* cwt, bytes *eaad, ecc_key *peer_key) {
+int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) {
     CborEncoder enc;
     uint8_t buffer[256];
     cbor_encoder_init(&enc, buffer, 256, 0);
@@ -55,7 +55,7 @@ int cwt_verify(rs_cwt* cwt, bytes *eaad, ecc_key *peer_key) {
     cbor_encode_byte_string(&ary, protected, len);
     free(protected);
 
-    cbor_encode_byte_string(&ary, eaad->buf, eaad->len);
+    cbor_encode_byte_string(&ary, eaad, eaad_size);
 
     uint8_t* payload;
     size_t p_len;
@@ -125,9 +125,10 @@ void cwt_parse_payload(rs_cwt* cwt, rs_payload* out) {
             cbor_value_advance(&cnf_elem);
 
             uint8_t* cnf;
-            size_t cnf_len;
-            cbor_value_dup_byte_string(&cnf_elem, &cnf, &cnf_len, &cnf_elem);
-            out->cnf = (bytes) {cnf, cnf_len};
+            size_t cnf_size;
+            cbor_value_dup_byte_string(&cnf_elem, &cnf, &cnf_size, &cnf_elem);
+            out->cnf = cnf;
+            out->cnf_size = cnf_size;
 
             cbor_value_leave_container(&elem, &cnf_elem);
         } else {
@@ -144,13 +145,13 @@ void cwt_parse_payload(rs_cwt* cwt, rs_payload* out) {
 #define CBOR_LABEL_COSE_KEY_X (-2)
 #define CBOR_LABEL_COSE_KEY_Y (-3)
 
-void cwt_parse_cose_key(bytes* encoded, cose_key* out) {
-    out->kid = (bytes) {NULL, 0};
+void cwt_parse_cose_key(uint8_t* encoded, size_t encoded_size, cose_key* out) {
+    out->kid_size = 0;
 
     CborParser parser;
     CborValue map;
 
-    cbor_parser_init(encoded->buf, encoded->len, 0, &parser, &map);
+    cbor_parser_init(encoded, encoded_size, 0, &parser, &map);
 
     CborValue elem;
     cbor_value_enter_container(&map, &elem);
@@ -167,9 +168,10 @@ void cwt_parse_cose_key(bytes* encoded, cose_key* out) {
             out->kty = (uint8_t) kty;
         } else if (label == CBOR_LABEL_COSE_KEY_KID) {
             uint8_t* kid;
-            size_t kid_len;
-            cbor_value_dup_byte_string(&elem, &kid, &kid_len, &elem);
-            out->kid = (bytes) {kid, kid_len};
+            size_t kid_size;
+            cbor_value_dup_byte_string(&elem, &kid, &kid_size, &elem);
+            out->kid = kid;
+            out->kid_size = kid_size;
         } else if (label == CBOR_LABEL_COSE_KEY_CRV) {
             int crv;
             cbor_value_get_int(&elem, &crv);
@@ -177,16 +179,16 @@ void cwt_parse_cose_key(bytes* encoded, cose_key* out) {
             out->crv = (uint8_t) crv;
         } else if (label == CBOR_LABEL_COSE_KEY_X) {
             uint8_t* x;
-            size_t x_len;
-            cbor_value_dup_byte_string(&elem, &x, &x_len, &elem);
+            size_t x_size;
+            cbor_value_dup_byte_string(&elem, &x, &x_size, &elem);
 
-            out->x = (bytes) { x, x_len };
+            out->x = x;
         } else if (label == CBOR_LABEL_COSE_KEY_Y) {
             uint8_t* y;
-            size_t y_len;
-            cbor_value_dup_byte_string(&elem, &y, &y_len, &elem);
+            size_t y_size;
+            cbor_value_dup_byte_string(&elem, &y, &y_size, &elem);
 
-            out->y = (bytes) { y, y_len };
+            out->y = y;
         } else {
             cbor_value_advance(&elem);
         }
@@ -207,13 +209,13 @@ void cwt_encode_cose_key(cose_key* key, uint8_t* buffer, size_t buf_size, size_t
     cbor_encode_int(&map, key->crv);
 
     cbor_encode_int(&map, CBOR_LABEL_COSE_KEY_X);
-    cbor_encode_byte_string(&map, key->x.buf, key->x.len);
+    cbor_encode_byte_string(&map, key->x, 32/*double-check*/);
 
     cbor_encode_int(&map, CBOR_LABEL_COSE_KEY_Y);
-    cbor_encode_byte_string(&map, key->y.buf, key->y.len);
+    cbor_encode_byte_string(&map, key->y, 32/*double-check*/);
 
     cbor_encode_int(&map, CBOR_LABEL_COSE_KEY_KID);
-    cbor_encode_byte_string(&map, key->kid.buf, key->kid.len);
+    cbor_encode_byte_string(&map, key->kid, key->kid_size);
 
     cbor_encoder_close_container(&enc, &map);
 
@@ -223,16 +225,17 @@ void cwt_encode_cose_key(cose_key* key, uint8_t* buffer, size_t buf_size, size_t
 void cwt_encode_ecc_key(uint8_t* key, uint8_t* buffer, size_t buf_size, size_t* len) {
     cose_key cose = {
             .crv = 1, // P-256
-            .kid = (bytes) {(uint8_t *) "abcd", 4},
+            .kid = "abcd",
+            .kid_size = 4,
             .kty = 2, // EC2
-            .x = (bytes) { key, 32 },
-            .y = (bytes) { key+32, 32 }
+            .x = key,
+            .y = key+32
     };
 
     cwt_encode_cose_key(&cose, buffer, buf_size, len);
 }
 
 void cwt_import_key(uint8_t* key, cose_key* cose) {
-    memcpy(key, cose->x.buf, cose->x.len);
-    memcpy(key+(cose->x.len), cose->y.buf, cose->y.len);
+    memcpy(key, cose->x, 32);
+    memcpy(key+32, cose->y, 32);
 }

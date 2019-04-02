@@ -7,23 +7,29 @@
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 
-typedef struct bytes {
-    uint8_t * buf;
-    size_t len;
-} bytes;
+typedef struct edhoc_msg_t {
+    char* data;
+    size_t size;
+} edhoc_msg_t;
+
+typedef struct session_t {
+    uint8_t* session_id;
+    size_t session_size;
+} session_t;
 
 struct edhoc_session_state {
     ecc_key key;
     ecc_key peer_key;
     ecc_key eph_key;
-    bytes session_id;
-    bytes shared_secret;
-    bytes message1;
-    bytes message2;
-    bytes message3;
+    session_t session;
+    char* shared_secret;
+    edhoc_msg_t message1;
+    edhoc_msg_t message2;
+    edhoc_msg_t message3;
 };
-typedef struct edhoc_session_state edhoc_server_session_state;
-typedef struct edhoc_session_state edhoc_client_session_state;
+
+typedef struct edhoc_session_state edhoc_u_session_state;
+typedef struct edhoc_session_state edhoc_v_session_state;
 
 typedef struct oscore_context {
     uint8_t master_secret[16];

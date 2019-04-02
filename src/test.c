@@ -16,8 +16,8 @@
 #include <wolfssl/wolfcrypt/random.h>
 #include <wolfssl/wolfcrypt/ecc.h>
 
-static edhoc_server_session_state edhoc_state;
-static edhoc_client_session_state edhoc_c_state;
+static edhoc_v_session_state edhoc_v_state;
+static edhoc_u_session_state edhoc_u_state;
 uint8_t state_mem[512 * 3];
 uint8_t c_state_mem[512 * 3];
 
@@ -43,17 +43,15 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
 
 int main(int argc, char *argv[]) {
     // Allocate space for stored messages
-    edhoc_state.message1.buf = state_mem;
-    edhoc_state.message2.buf = state_mem + 512;
-    edhoc_state.message3.buf = state_mem + 1024; 
-    edhoc_state.shared_secret.buf = malloc(32);
-    edhoc_state.shared_secret.len = 32;
+    edhoc_v_state.message1.data = state_mem;
+    edhoc_v_state.message2.data = state_mem + 512;
+    edhoc_v_state.message3.data = state_mem + 1024;
+    edhoc_v_state.shared_secret = malloc(32);
 
-    edhoc_c_state.message1.buf = c_state_mem;
-    edhoc_c_state.message2.buf = c_state_mem + 512;
-    edhoc_c_state.message3.buf = c_state_mem + 1024; 
-    edhoc_c_state.shared_secret.buf = malloc(32);
-    edhoc_c_state.shared_secret.len = 32;
+    edhoc_u_state.message1.data = c_state_mem;
+    edhoc_u_state.message2.data = c_state_mem + 512;
+    edhoc_u_state.message3.data = c_state_mem + 1024;
+    edhoc_u_state.shared_secret = malloc(32);
 
 #if defined(USE_CRYPTOAUTH)
     uint32_t revision;
@@ -97,37 +95,37 @@ int main(int argc, char *argv[]) {
         *((uint8_t *) &serial[2]), (config_is_locked ? "yes" : "no"),
         (data_is_locked ? "yes" : "no"));
     
-    edhoc_state.key.slot = 0;
+    edhoc_v_state.key.slot = 0;
     atcab_get_pubkey(1, id_v);
-    wc_ecc_import_unsigned(&edhoc_state.peer_key, id_v, id_v+32, NULL, ECC_SECP256R1);
-    edhoc_c_state.key.slot = 1;
+    wc_ecc_import_unsigned(&edhoc_v_state.peer_key, id_v, id_v+32, NULL, ECC_SECP256R1);
+    edhoc_u_state.key.slot = 1;
     atcab_get_pubkey(0, id_u);
-    wc_ecc_import_unsigned(&edhoc_c_state.peer_key, id_u, id_u+32, NULL, ECC_SECP256R1);
+    wc_ecc_import_unsigned(&edhoc_u_state.peer_key, id_u, id_u+32, NULL, ECC_SECP256R1);
 #else
     RNG rng;
     wc_InitRng(&rng);
 
-    wc_ecc_init(&(edhoc_state.key));
-    wc_ecc_make_key(&rng, 32, &(edhoc_state.key));
+    wc_ecc_init(&(edhoc_v_state.key));
+    wc_ecc_make_key(&rng, 32, &(edhoc_v_state.key));
 
     byte pub_key[65];
     word32 pub_key_len = sizeof(pub_key);
-    wc_ecc_export_x963(&edhoc_state.key, pub_key, &pub_key_len);
-    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_c_state.peer_key);
+    wc_ecc_export_x963(&edhoc_v_state.key, pub_key, &pub_key_len);
+    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_u_state.peer_key);
 
-    wc_ecc_init(&(edhoc_c_state.key));
-    wc_ecc_make_key(&rng, 32, &(edhoc_c_state.key));
+    wc_ecc_init(&(edhoc_u_state.key));
+    wc_ecc_make_key(&rng, 32, &(edhoc_u_state.key));
 
-    wc_ecc_export_x963(&edhoc_c_state.key, pub_key, &pub_key_len);
-    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_state.peer_key);
+    wc_ecc_export_x963(&edhoc_u_state.key, pub_key, &pub_key_len);
+    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_v_state.peer_key);
 #endif
     uint8_t message1_buf[512];
     uint8_t message2_buf[512];
     uint8_t message3_buf[512];
-    size_t message1_len = initiate_edhoc(&edhoc_c_state, message1_buf, 512);
-    size_t message2_len = edhoc_handler_message_1(&edhoc_state, message1_buf, message1_len, message2_buf, 512);
-    size_t message3_len = edhoc_handler_message_2(&edhoc_c_state, message2_buf, message2_len, message3_buf, 512);
-    edhoc_handler_message_3(&edhoc_state, message3_buf, message3_len);
+    size_t message1_len = initiate_edhoc(&edhoc_u_state, message1_buf, 512);
+    size_t message2_len = edhoc_handler_message_1(&edhoc_v_state, message1_buf, message1_len, message2_buf, 512);
+    size_t message3_len = edhoc_handler_message_2(&edhoc_u_state, message2_buf, message2_len, message3_buf, 512);
+    edhoc_handler_message_3(&edhoc_v_state, message3_buf, message3_len);
 
 out:
 #if defined(USE_CRYPTOAUTH)
