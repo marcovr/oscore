@@ -6,7 +6,7 @@
 
 typedef struct edhoc_msg_1 {
     uint8_t tag;
-    session_t session;
+    conn_id_t connection;
     uint8_t* nonce;
     size_t nonce_size;
     uint8_t* cose_eph_key;
@@ -15,8 +15,8 @@ typedef struct edhoc_msg_1 {
 
 typedef struct edhoc_msg_2 {
     uint8_t tag;
-    session_t session;
-    session_t peer_session;
+    conn_id_t connection;
+    conn_id_t peer_connection;
     uint8_t* peer_nonce;
     size_t peer_nonce_size;
     uint8_t* cose_peer_key;
@@ -36,7 +36,7 @@ typedef struct msg_2_context {
 
 typedef struct edhoc_msg_3 {
     uint8_t tag;
-    session_t peer_session;
+    conn_id_t peer_connection;
     uint8_t* cose_enc_3;
     size_t cose_enc_3_size;
 } edhoc_msg_3;

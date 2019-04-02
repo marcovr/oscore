@@ -12,16 +12,16 @@ typedef struct edhoc_msg_t {
     size_t size;
 } edhoc_msg_t;
 
-typedef struct session_t {
-    uint8_t* session_id;
-    size_t session_size;
-} session_t;
+typedef struct conn_id_t {
+    uint8_t* conn_id;
+    size_t conn_size;
+} conn_id_t;
 
 struct edhoc_session_state {
     ecc_key key;
     ecc_key peer_key;
     ecc_key eph_key;
-    session_t session;
+    conn_id_t connection;
     char* shared_secret;
     edhoc_msg_t message1;
     edhoc_msg_t message2;

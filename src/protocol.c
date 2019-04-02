@@ -16,18 +16,18 @@
 
 
 size_t initiate_edhoc(edhoc_u_session_state* ctx, uint8_t* out, size_t out_size) {
-    // Generate random session id
-    uint8_t session_id[32];/*double-check*/
+    // Generate random connection id
+    uint8_t conn_id[32];
 #if defined(USE_CRYPTOAUTH)
-    atcab_random(session_id);
+    atcab_random(conn_id);
 #else
     RNG rng;
     wc_InitRng(&rng);
-    wc_RNG_GenerateBlock(&rng, session_id, 32);
+    wc_RNG_GenerateBlock(&rng, conn_id, 32);
 #endif
-    ctx->session.session_id = malloc(SESSION_IDENTIFIER_SIZE);/*triple-check*/
-    memcpy(ctx->session.session_id, session_id, SESSION_IDENTIFIER_SIZE);
-    ctx->session.session_size = SESSION_IDENTIFIER_SIZE;
+    ctx->connection.conn_id = malloc(CONN_IDENTIFIER_SIZE);
+    memcpy(ctx->connection.conn_id, conn_id, CONN_IDENTIFIER_SIZE);
+    ctx->connection.conn_size = CONN_IDENTIFIER_SIZE;
 
     // Generate nonce
     uint8_t nonce[32];
@@ -54,7 +54,7 @@ size_t initiate_edhoc(edhoc_u_session_state* ctx, uint8_t* out, size_t out_size)
 
     edhoc_msg_1 msg1 = {
             .tag = 1,
-            .session = ctx->session,
+            .connection = ctx->connection,
             .nonce = nonce,
             .nonce_size = 8,
             .cose_eph_key = enc_sess_key,//triple-check
@@ -70,7 +70,7 @@ size_t initiate_edhoc(edhoc_u_session_state* ctx, uint8_t* out, size_t out_size)
     phex(out, size);
 
     // Cleanup
-    //free(msg1.session_id.buf);
+    //free(msg1.connection.conn_id);
     //free(msg1.nonce.buf);
     //free(msg1.eph_key.buf);
 
@@ -86,18 +86,18 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
     ctx->message1.size = in_size;
     memcpy(ctx->message1.data, buffer_in, in_size);
 
-    uint8_t session_id[2];/*double-check*/
+    uint8_t conn_id[32];
     // Initialize random generator
 #if defined(USE_CRYPTOAUTH)
-    atcab_random(session_id);
+    atcab_random(conn_id);
 #else
     RNG rng;
     wc_InitRng(&rng);
-    wc_RNG_GenerateBlock(&rng, session_id, 2);/*double-check*/
+    wc_RNG_GenerateBlock(&rng, conn_id, 2);/*double-check*/
 #endif
-    ctx->session.session_id = malloc(SESSION_IDENTIFIER_SIZE);/*triple-check*/
-    memcpy(ctx->session.session_id, session_id, SESSION_IDENTIFIER_SIZE);
-    ctx->session.session_size = SESSION_IDENTIFIER_SIZE;
+    ctx->connection.conn_id = malloc(CONN_IDENTIFIER_SIZE);/*triple-check*/
+    memcpy(ctx->connection.conn_id, conn_id, CONN_IDENTIFIER_SIZE);
+    ctx->connection.conn_size = CONN_IDENTIFIER_SIZE;
 
     // Generate nonce
     uint8_t nonce[32];
@@ -157,8 +157,8 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
 
     edhoc_msg_2 msg2 = {
             .tag = 2,
-            .session = msg1.session,
-            .peer_session = ctx->session,/*triple-check*/
+            .connection = msg1.connection,
+            .peer_connection = ctx->connection,/*triple-check*/
             .peer_nonce = nonce,
             .peer_nonce_size = 8,
             .cose_peer_key = enc_sess_key,//{enc_sess_key, n},
@@ -180,7 +180,7 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
     phex(out, size);
 
     // Cleanup
-    //free(msg1.session_id);
+    //free(msg1.connection.conn_id);
     free(msg1.nonce);
     free(msg1.cose_eph_key);
 
@@ -261,7 +261,7 @@ size_t edhoc_handler_message_2(edhoc_u_session_state* ctx, const uint8_t* buffer
 
     edhoc_msg_3 msg3 = {
             .tag = 3,
-            .peer_session = ctx->session
+            .peer_connection = ctx->connection
     };
 
     msg_3_context ctx3 = {
@@ -280,8 +280,8 @@ size_t edhoc_handler_message_2(edhoc_u_session_state* ctx, const uint8_t* buffer
     phex(out, size);
 
     // Cleanup
-    //free(msg2.session_id);
-    //free(msg2.peer_session_id);
+    //free(msg2.connection.conn_id);
+    //free(msg2.peer_connection.conn_id);
     free(msg2.peer_nonce);
     free(msg2.cose_peer_key);
     free(msg2.cose_enc_2);
@@ -335,6 +335,6 @@ void edhoc_handler_message_3(edhoc_v_session_state* ctx, const uint8_t* buffer_i
     }
 
     // Cleanup
-    //free(msg3.peer_session_id);
+    //free(msg3.peer_connection.conn_id);
     free(msg3.cose_enc_3);
 }

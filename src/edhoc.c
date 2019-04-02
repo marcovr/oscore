@@ -8,15 +8,15 @@
 #define DIGEST_SIZE 32
 
 void edhoc_msg_1_free(edhoc_msg_1 *msg1) {
-    //free(msg1->session_id);
+    //free(msg1->connection.conn_id);
     free(msg1->nonce);
     free(msg1->cose_eph_key);
     //free(msg1);
 }
 
 void edhoc_msg_2_free(edhoc_msg_2 *msg2) {
-    //free(msg2->session_id);
-    //free(msg2->peer_session_id);
+    //free(msg2->connection.conn_id);
+    //free(msg2->peer_connection.conn_id);
     free(msg2->peer_nonce);
     free(msg2->cose_peer_key);
     free(msg2->cose_enc_2);
@@ -24,7 +24,7 @@ void edhoc_msg_2_free(edhoc_msg_2 *msg2) {
 }
 
 void edhoc_msg_3_free(edhoc_msg_3 *msg3) {
-    //free(msg3->peer_session_id);
+    //free(msg3->peer_connection.conn_id);
     free(msg3->cose_enc_3);
     //free(msg3);
 }
@@ -42,11 +42,11 @@ void edhoc_deserialize_msg1(edhoc_msg_1 *msg1, uint8_t* buffer, size_t len) {
     cbor_value_get_uint64(&elem, (uint64_t *) &msg1->tag);
     cbor_value_advance(&elem);
 
-    cbor_value_dup_byte_string(&elem, &(msg1->session.session_id), &(msg1->session.session_size)/*double-check*/, &elem);
+    cbor_value_dup_byte_string(&elem, &(msg1->connection.conn_id), &(msg1->connection.conn_size)/*double-check*/, &elem);
     cbor_value_dup_byte_string(&elem, &(msg1->nonce), &(msg1->nonce_size), &elem);
     cbor_value_dup_byte_string(&elem, &(msg1->cose_eph_key), &(msg1->cose_eph_key_size)/*triple-check*/, &elem);
 
-    // must free msg.session_id
+    // must free msg.conn_id
     // must free msg.nonce
     // must free msg.eph_key
 }
@@ -64,13 +64,13 @@ void edhoc_deserialize_msg2(edhoc_msg_2 *msg2, uint8_t* buffer, size_t size) {
     cbor_value_get_uint64(&element, (uint64_t *) &msg2->tag);
     cbor_value_advance(&element); // TODO: double-check
 
-    uint8_t* session_id;
-    size_t session_size;
-    cbor_value_dup_byte_string(&element, &session_id, &session_size, &element);
+    uint8_t* conn_id;
+    size_t conn_size;
+    cbor_value_dup_byte_string(&element, &conn_id, &conn_size, &element);
 
-    uint8_t* peer_session_id;
-    size_t peer_session_size;
-    cbor_value_dup_byte_string(&element, &peer_session_id, &peer_session_size, &element);
+    uint8_t* peer_conn_id;
+    size_t peer_conn_size;
+    cbor_value_dup_byte_string(&element, &peer_conn_id, &peer_conn_size, &element);
 
     uint8_t* peer_nonce;
     size_t peer_nonce_size;
@@ -84,8 +84,8 @@ void edhoc_deserialize_msg2(edhoc_msg_2 *msg2, uint8_t* buffer, size_t size) {
     size_t cose_enc_2_size;
     cbor_value_dup_byte_string(&element, &cose_enc_2, &cose_enc_2_size, &element);
 
-    msg2->session = (session_t) {session_id, session_size};
-    msg2->peer_session = (session_t) {peer_session_id, peer_session_size};
+    msg2->connection = (conn_id_t) {conn_id, conn_size};
+    msg2->peer_connection = (conn_id_t) {peer_conn_id, peer_conn_size};
     msg2->peer_nonce = peer_nonce;
     msg2->peer_nonce_size = peer_nonce_size;
     msg2->cose_peer_key = peer_key;
@@ -93,7 +93,7 @@ void edhoc_deserialize_msg2(edhoc_msg_2 *msg2, uint8_t* buffer, size_t size) {
     msg2->cose_enc_2 = cose_enc_2;
     msg2->cose_enc_2_size = cose_enc_2_size;
 
-    // must free msg.peer_session_id
+    // must free msg.peer_conn_id
     // must free msg.cose_enc_2
 }
 
@@ -110,19 +110,19 @@ void edhoc_deserialize_msg3(edhoc_msg_3 *msg3, uint8_t* buffer, size_t len) {
     cbor_value_get_uint64(&element, (uint64_t *) &msg3->tag);
     cbor_value_advance(&element);
 
-    uint8_t* peer_session_id;
-    size_t peer_session_size;
-    cbor_value_dup_byte_string(&element, &peer_session_id, &peer_session_size, &element);
+    uint8_t* peer_conn_id;
+    size_t peer_conn_size;
+    cbor_value_dup_byte_string(&element, &peer_conn_id, &peer_conn_size, &element);
 
     uint8_t* cose_enc_3;
     size_t cose_enc_3_size;
     cbor_value_dup_byte_string(&element, &cose_enc_3, &cose_enc_3_size, &element);
 
-    msg3->peer_session = (session_t) {peer_session_id, peer_session_size};
+    msg3->peer_connection = (conn_id_t) {peer_conn_id, peer_conn_size};
     msg3->cose_enc_3      = cose_enc_3;
     msg3->cose_enc_3_size = cose_enc_3_size;
     
-    // must free msg.peer_session_id
+    // must free msg.peer_conn_id
     // must free msg.cose_enc_3
 }
 
@@ -136,7 +136,7 @@ size_t edhoc_serialize_msg_1(edhoc_msg_1 *msg1, unsigned char* buffer, size_t bu
 
     cbor_encode_uint(&ary, msg1->tag);
 
-    cbor_encode_byte_string(&ary, msg1->session.session_id, msg1->session.session_size);
+    cbor_encode_byte_string(&ary, msg1->connection.conn_id, msg1->connection.conn_size);
     cbor_encode_byte_string(&ary, msg1->nonce, msg1->nonce_size);
     cbor_encode_byte_string(&ary, msg1->cose_eph_key, msg1->cose_eph_key_size/*double-check*/);
 
@@ -189,8 +189,8 @@ size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, ecc_key 
     cbor_encoder_create_array(&enc, &ary, 6);
 
     cbor_encode_int(&ary, msg2->tag);
-    cbor_encode_byte_string(&ary, msg2->session.session_id, msg2->session.session_size);
-    cbor_encode_byte_string(&ary, msg2->peer_session.session_id, msg2->peer_session.session_size);
+    cbor_encode_byte_string(&ary, msg2->connection.conn_id, msg2->connection.conn_size);
+    cbor_encode_byte_string(&ary, msg2->peer_connection.conn_id, msg2->peer_connection.conn_size);
     cbor_encode_byte_string(&ary, msg2->peer_nonce, msg2->peer_nonce_size);
     cbor_encode_byte_string(&ary, msg2->cose_peer_key, msg2->cose_peer_key_size);
     cbor_encode_byte_string(&ary, enc_2, enc_2_size);
@@ -248,7 +248,7 @@ size_t edhoc_serialize_msg_3(edhoc_msg_3 *msg3, msg_3_context* context, ecc_key 
     cbor_encoder_create_array(&enc, &ary, 3);
 
     cbor_encode_int(&ary, msg3->tag);
-    cbor_encode_byte_string(&ary, msg3->peer_session.session_id, msg3->peer_session.session_size);
+    cbor_encode_byte_string(&ary, msg3->peer_connection.conn_id, msg3->peer_connection.conn_size);
     cbor_encode_byte_string(&ary, enc_3, enc_3_size);
 
     cbor_encoder_close_container(&enc, &ary);
@@ -267,8 +267,8 @@ void edhoc_aad2(edhoc_msg_2 *msg2, uint8_t* message1, size_t message1_size, uint
     cbor_encoder_create_array(&enc, &ary, 5);
 
     cbor_encode_int(&ary, msg2->tag);
-    cbor_encode_byte_string(&ary, msg2->session.session_id, msg2->session.session_size);
-    cbor_encode_byte_string(&ary, msg2->peer_session.session_id, msg2->peer_session.session_size);
+    cbor_encode_byte_string(&ary, msg2->connection.conn_id, msg2->connection.conn_size);
+    cbor_encode_byte_string(&ary, msg2->peer_connection.conn_id, msg2->peer_connection.conn_size);
     cbor_encode_byte_string(&ary, msg2->peer_nonce, msg2->peer_nonce_size);
     cbor_encode_byte_string(&ary, msg2->cose_peer_key, msg2->cose_peer_key_size/*double-check*/);
 
@@ -353,7 +353,7 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
     cbor_encoder_create_array(&enc, &ary, 2);
 
     cbor_encode_int(&ary, msg3->tag);
-    cbor_encode_byte_string(&ary, msg3->peer_session.session_id, msg3->peer_session.session_size);
+    cbor_encode_byte_string(&ary, msg3->peer_connection.conn_id, msg3->peer_connection.conn_size);
 
     cbor_encoder_close_container(&enc, &ary);
     size_t data3_len = cbor_encoder_get_buffer_size(&enc, data3);
