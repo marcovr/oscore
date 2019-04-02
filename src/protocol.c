@@ -171,7 +171,7 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
             .message1_size = ctx->message1.size
     };
 
-    size_t size = edhoc_serialize_msg_2(&msg2, &ctx2, ctx->key, out, out_size);
+    size_t size = edhoc_serialize_msg_2(&msg2, &ctx2, &ctx->key, out, out_size);
 
     ctx->message2.size = size;
     ctx->message2.data = out;
@@ -271,7 +271,7 @@ size_t edhoc_handler_message_2(edhoc_u_session_state* ctx, const uint8_t* buffer
             .message2 = ctx->message2.data,
             .message2_size = ctx->message2.size
     };
-    size_t size = edhoc_serialize_msg_3(&msg3, &ctx3, ctx->key, out, out_size);
+    size_t size = edhoc_serialize_msg_3(&msg3, &ctx3, &ctx->key, out, out_size);
 
     ctx->message3.size = size;
     ctx->message3.data = out;

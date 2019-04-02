@@ -81,10 +81,10 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
     
     int verified = 0;
     //atcab_verify_extern(digest, signature.buf, NULL, &verified);
-    mp_int r, s;
-    mp_read_unsigned_bin (&r, signature, 32);
-    mp_read_unsigned_bin (&s, signature+32, 32);
-    int ret = wc_ecc_verify_hash_ex(&r, &s, digest, sizeof(digest), &verified, peer_key);
+    uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
+    int sig_size = sizeof(sig_buf);
+    wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);
+    wc_ecc_verify_hash(sig_buf, sig_size, digest, SHA256_DIGEST_SIZE, &verified, peer_key);
     if (!verified)
         return -1;
     

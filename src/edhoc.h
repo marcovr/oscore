@@ -54,15 +54,15 @@ void edhoc_msg_2_free(edhoc_msg_2 *msg2);
 void edhoc_msg_3_free(edhoc_msg_3 *msg3);
 
 size_t edhoc_serialize_msg_1(edhoc_msg_1 *msg1, unsigned char* buffer, size_t buf_size);
-size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, ecc_key sigkey, unsigned char* buffer, size_t buf_size);
-size_t edhoc_serialize_msg_3(edhoc_msg_3 *msg3, msg_3_context* context, ecc_key sigkey, unsigned char* buffer, size_t buf_size);
+size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, ecc_key* sigkey, unsigned char* buffer, size_t buf_size);
+size_t edhoc_serialize_msg_3(edhoc_msg_3 *msg3, msg_3_context* context, ecc_key* sigkey, unsigned char* buffer, size_t buf_size);
 
 void edhoc_deserialize_msg1(edhoc_msg_1 *msg1, uint8_t* buffer, size_t len);
 void edhoc_deserialize_msg2(edhoc_msg_2 *msg2, uint8_t* buffer, size_t len);
 void edhoc_deserialize_msg3(edhoc_msg_3 *msg3, uint8_t* buffer, size_t len);
 
 void edhoc_aad2(edhoc_msg_2* msg2, uint8_t* message1, size_t message1_size, uint8_t* out_hash);
-void edhoc_msg_sig(uint8_t* aad, ecc_key sigkey,
+void edhoc_msg_sig(uint8_t* aad, ecc_key* sigkey,
                    uint8_t* out, size_t buf_size, size_t* out_size);
 
 void edhoc_msg_enc_0(uint8_t* aad, uint8_t* signature, size_t signature_size, uint8_t* key, uint8_t* iv, size_t iv_size,

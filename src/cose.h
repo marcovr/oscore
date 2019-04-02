@@ -29,7 +29,7 @@ typedef struct cose_encrypt0 {
 } cose_encrypt0;
 
 void cose_encode_signed(cose_sign1* sign1,
-                        ecc_key key,
+                        ecc_key* key,
                         uint8_t* out,
                         size_t buf_size,
                         size_t* out_size);

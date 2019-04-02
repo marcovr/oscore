@@ -20,7 +20,7 @@
 #define DIGEST_SIZE 32
 #define TAG_SIZE 8
 
-void cose_encode_signed(cose_sign1* sign1, ecc_key key,
+void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
                         uint8_t* out, size_t out_size, size_t* out_len) {
     uint8_t sign_structure[256];
     size_t sign_struct_size;
@@ -47,11 +47,11 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key key,
     RNG rng;
     wc_InitRng(&rng);
 
-    mp_int r, s;
-    mp_init(&r); mp_init(&s);
-    int ret = wc_ecc_sign_hash_ex(digest, DIGEST_SIZE, &rng, &key, &r, &s);
-    mp_to_unsigned_bin_len(&r, signature, 32);
-    mp_to_unsigned_bin_len(&s, signature+32, 32);
+    uint8_t sig_buf[wc_ecc_sig_size(key)];
+    int sig_size = sizeof(sig_buf);
+    int ret = wc_ecc_sign_hash(digest, sizeof(digest), sig_buf, &sig_size, &rng, key);
+    int r_size=32, s_size=32;
+    ret = wc_ecc_sig_to_rs(sig_buf, sig_size, signature, &r_size, signature+32, &s_size);
 #endif
     // Encode sign1 structure
     CborEncoder enc;
@@ -279,11 +279,10 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
 
     int verified = 0;
     //atcab_verify_extern(digest, signature.buf, NULL, &verified);
-    mp_int r, s;
-    mp_init(&r); mp_init(&s);
-    mp_read_unsigned_bin (&r, signature, 32);
-    mp_read_unsigned_bin (&s, signature+32, 32);
-    int ret = wc_ecc_verify_hash_ex(&r, &s, digest, DIGEST_SIZE, &verified, peer_key);
+    uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
+    int sig_size = sizeof(sig_buf);
+    wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);
+    wc_ecc_verify_hash(sig_buf, sig_size, digest, DIGEST_SIZE, &verified, peer_key);
     if (!verified)
         return -1;
 
