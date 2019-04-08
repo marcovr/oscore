@@ -78,9 +78,10 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
     uint8_t* signature;
     size_t sig_len;
     cbor_value_dup_byte_string(&cwt->signature, &signature, &sig_len, NULL);
-    
+
     int verified = 0;
-    //atcab_verify_extern(digest, signature.buf, NULL, &verified);
+    //atcab_verify_extern(digest, signature.buf, peer_key, &verified);
+
     uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
     int sig_size = sizeof(sig_buf);
     wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);

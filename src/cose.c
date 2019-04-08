@@ -99,15 +99,23 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_
 
     // Compute aad
     uint8_t aad[128];
-    size_t aad_len;
-    cose_enc0_structure(prot_header, prot_size, enc0->external_aad, enc0->external_aad_size, aad, sizeof(aad), &aad_len);
+    size_t aad_size;
+    cose_enc0_structure(prot_header, prot_size, enc0->external_aad, enc0->external_aad_size, aad, sizeof(aad), &aad_size);
 
     // Encrypt
     uint8_t ciphertext[enc0->plaintext_size + TAG_SIZE];
 
+#if defined(USE_CRYPTOAUTH)
+    atca_aes_gcm_ctx_t aes_gcm_ctx;
+    status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, iv_size);
+    status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
+    status = atcab_aes_gcm_encrypt_update(&aes_gcm_ctx, enc0->plaintext, enc0->plaintext_size, ciphertext);
+    status = atcab_aes_gcm_encrypt_finish(&aes_gcm_ctx, ciphertext + enc0->plaintext_size, TAG_SIZE);
+#else
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
-    wc_AesCcmEncrypt(&aes, ciphertext, enc0->plaintext, enc0->plaintext_size, iv, iv_size, ciphertext + enc0->plaintext_size, TAG_SIZE , aad, aad_len);
+    wc_AesCcmEncrypt(&aes, ciphertext, enc0->plaintext, enc0->plaintext_size, iv, iv_size, ciphertext + enc0->plaintext_size, TAG_SIZE, aad, aad_size);
+#endif
 
     // Encode
     CborEncoder enc;
@@ -181,7 +189,21 @@ void cose_kdf_context(const char* algorithm_id, int key_length, uint8_t* other, 
 }
 
 void derive_key(uint8_t* input_key, uint8_t* info, size_t info_size, uint8_t* out, size_t out_size) {
+#if defined(USE_CRYPTOAUTH)
+    status = atcab_kdf(
+        KDF_MODE_ALG_HKDF | KDF_MODE_SOURCE_TEMPKEY | KDF_MODE_TARGET_TEMPKEY,
+        0x0000, // K_2 stored in slot 4
+                // Source key slot is the LSB and target key slot is the MSB.
+        KDF_DETAILS_HKDF_MSG_LOC_INPUT | ((uint32_t)info_size << 24), /* Actual size
+                                        of message is 16 bytes for AES algorithm or is encoded
+                                        in the MSB of the details parameter for other
+                                        algorithms.*/
+        info,
+        out_kdf_hkdf,
+        NULL);
+#else
     wc_HKDF(WC_HASH_TYPE_SHA256, input_key, 32/*double-check*/, NULL, 0, info, info_size, out, out_size);
+#endif
 }
 
 void cose_decrypt_enc0(uint8_t* enc0, size_t enc0_size, uint8_t *key, uint8_t *iv, size_t iv_size, uint8_t* external_aad, size_t external_aad_size,
@@ -220,10 +242,18 @@ void cose_decrypt_enc0(uint8_t* enc0, size_t enc0_size, uint8_t *key, uint8_t *i
     uint8_t auth_tag[TAG_SIZE];
     memcpy(auth_tag, ciphertext + ciphertext_size - TAG_SIZE, TAG_SIZE);
 
-    // Decrypt
+#if defined(USE_CRYPTOAUTH)
+    bool verified;
+    atca_aes_gcm_ctx_t aes_gcm_ctx;
+    status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, 7);
+    status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
+    status = atcab_aes_gcm_decrypt_update(&aes_gcm_ctx, ciphertext, sizeof(plaintext), plaintext);
+    status = atcab_aes_gcm_decrypt_finish(&aes_gcm_ctx, auth_tag, TAG_SIZE, &verified);
+#else
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
     wc_AesCcmDecrypt(&aes, plaintext, ciphertext, sizeof(plaintext), iv, 7/*iv_size*/, auth_tag, TAG_SIZE, aad, aad_size);
+#endif
 
     phex(plaintext, sizeof(plaintext));
 
