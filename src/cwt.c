@@ -2,9 +2,14 @@
 // Created by Urs Gerber on 08.03.18.
 //
 #include <stdlib.h>
+#include <assert.h>
 
 #include "cwt.h"
 #include "tinycbor/cbor.h"
+
+#if defined(USE_CRYPTOAUTH)
+#include "cryptoauthlib.h"
+#endif
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
 #include <wolfssl/wolfcrypt/random.h>
@@ -80,14 +85,21 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
     cbor_value_dup_byte_string(&cwt->signature, &signature, &sig_len, NULL);
 
     int verified = 0;
-    //atcab_verify_extern(digest, signature.buf, peer_key, &verified);
-
+#if defined(USE_CRYPTOAUTH)
+    ATCA_STATUS status = ATCA_GEN_FAIL;
+    status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);
+    uint8_t public_key[64];
+    int coord_size = 32;
+    wc_ecc_export_public_raw(peer_key, public_key, &coord_size, public_key + 32, &coord_size);
+    status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, public_key, NULL, NULL);
+    verified = (status==ATCA_SUCCESS);
+ #else
     uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
     int sig_size = sizeof(sig_buf);
     wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);
     wc_ecc_verify_hash(sig_buf, sig_size, digest, SHA256_DIGEST_SIZE, &verified, peer_key);
-    if (!verified)
-        return -1;
+#endif
+    assert(verified);
     
     free(signature);
 

@@ -1,4 +1,5 @@
 #include <stdlib.h>
+#include <assert.h>
 
 #include "cose.h"
 #include "utils.h"
@@ -252,7 +253,7 @@ void cose_decrypt_enc0(uint8_t* enc0, size_t enc0_size, uint8_t *key, uint8_t *i
     memcpy(auth_tag, ciphertext + ciphertext_size - TAG_SIZE, TAG_SIZE);
 
 #if defined(USE_CRYPTOAUTH)
-    ATCA_STATUS status;
+    ATCA_STATUS status = ATCA_GEN_FAIL;
     bool verified;
     atca_aes_gcm_ctx_t aes_gcm_ctx;
     status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, 7);
@@ -318,13 +319,21 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
     wc_Sha256Final(&sha, digest);
 
     int verified = 0;
-    //atcab_verify_extern(digest, signature.buf, NULL, &verified);
+#if defined(USE_CRYPTOAUTH)
+    ATCA_STATUS status = ATCA_GEN_FAIL;
+    status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);
+    uint8_t public_key[64];
+    int coord_size = 32;
+    wc_ecc_export_public_raw(peer_key, public_key, &coord_size, public_key + 32, &coord_size);
+    status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, public_key, NULL, NULL);
+    verified = (status==ATCA_SUCCESS);
+ #else
     uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
     int sig_size = sizeof(sig_buf);
     wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);
     wc_ecc_verify_hash(sig_buf, sig_size, digest, DIGEST_SIZE, &verified, peer_key);
-    if (!verified)
-        return -1;
+#endif
+    assert(verified);
 
     // Cleanup
     free(protected);
