@@ -6,6 +6,7 @@
 
 #if defined(USE_CRYPTOAUTH)
 #include "cryptoauthlib.h"
+#include "basic/atca_basic_aes_gcm.h"
 #endif
 #include <wolfssl/options.h>
 #include <wolfssl/wolfcrypt/settings.h>
@@ -42,7 +43,9 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
     // Compute signature
     uint8_t signature[64];
 #if defined(USE_CRYPTOAUTH)
-    atcab_sign(key.slot, digest, signature);
+    ATCA_STATUS status = ATCA_GEN_FAIL;
+    status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);
+    status = atcab_sign_base(SIGN_MODE_EXTERNAL | SIGN_MODE_SOURCE_MSGDIGBUF, key->slot, signature);
 #else
     RNG rng;
     wc_InitRng(&rng);
@@ -106,6 +109,7 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_
     uint8_t ciphertext[enc0->plaintext_size + TAG_SIZE];
 
 #if defined(USE_CRYPTOAUTH)
+    ATCA_STATUS status = ATCA_GEN_FAIL;
     atca_aes_gcm_ctx_t aes_gcm_ctx;
     status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, iv_size);
     status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
@@ -189,9 +193,12 @@ void cose_kdf_context(const char* algorithm_id, int key_length, uint8_t* other, 
 }
 
 void derive_key(uint8_t* input_key, uint8_t* info, size_t info_size, uint8_t* out, size_t out_size) {
+printf("info_size: %i\n", info_size);
 #if defined(USE_CRYPTOAUTH)
+    ATCA_STATUS status;
+    uint8_t buf[32];
     status = atcab_kdf(
-        KDF_MODE_ALG_HKDF | KDF_MODE_SOURCE_TEMPKEY | KDF_MODE_TARGET_TEMPKEY,
+        KDF_MODE_ALG_HKDF | KDF_MODE_SOURCE_TEMPKEY | KDF_MODE_TARGET_OUTPUT,
         0x0000, // K_2 stored in slot 4
                 // Source key slot is the LSB and target key slot is the MSB.
         KDF_DETAILS_HKDF_MSG_LOC_INPUT | ((uint32_t)info_size << 24), /* Actual size
@@ -199,8 +206,10 @@ void derive_key(uint8_t* input_key, uint8_t* info, size_t info_size, uint8_t* ou
                                         in the MSB of the details parameter for other
                                         algorithms.*/
         info,
-        out_kdf_hkdf,
+        buf,
         NULL);
+printf("derive_key: %02x\n", status);
+    memcpy(out, buf, out_size);
 #else
     wc_HKDF(WC_HASH_TYPE_SHA256, input_key, 32/*double-check*/, NULL, 0, info, info_size, out, out_size);
 #endif
@@ -243,6 +252,7 @@ void cose_decrypt_enc0(uint8_t* enc0, size_t enc0_size, uint8_t *key, uint8_t *i
     memcpy(auth_tag, ciphertext + ciphertext_size - TAG_SIZE, TAG_SIZE);
 
 #if defined(USE_CRYPTOAUTH)
+    ATCA_STATUS status;
     bool verified;
     atca_aes_gcm_ctx_t aes_gcm_ctx;
     status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, 7);
