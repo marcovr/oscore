@@ -3,21 +3,12 @@
 
 #include "cose.h"
 #include "utils.h"
-#include "tinycbor/cbor.h"
+#include "cbor.h"
 
 #if defined(USE_CRYPTOAUTH)
 #include "cryptoauthlib.h"
 #include "basic/atca_basic_aes_gcm.h"
 #endif
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/sha.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/hmac.h>
-#include <wolfssl/wolfcrypt/types.h>
-#include <wolfssl/wolfcrypt/wolfmath.h>
-#include <wolfssl/wolfcrypt/aes.h>
 
 #define DIGEST_SIZE 32
 #define TAG_SIZE 8
@@ -36,10 +27,7 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
     // Hash sign structure
     //atcab_sha((uint16_t) sign_struct_len, (const uint8_t*) sign_structure, digest);
     uint8_t digest[DIGEST_SIZE];
-    Sha256 sha;
-    wc_InitSha256(&sha);
-    wc_Sha256Update(&sha, sign_structure, sign_struct_size);
-    wc_Sha256Final(&sha, digest);
+    atcab_sha(sign_struct_size, sign_structure, digest);
 
     // Compute signature
     uint8_t signature[64];
@@ -313,10 +301,7 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
     // Compute digest
     uint8_t digest[DIGEST_SIZE];
     //atcab_sha((uint16_t) to_verify_len, (const uint8_t*) to_verify, digest);
-    Sha256 sha;
-    wc_InitSha256(&sha);
-    wc_Sha256Update(&sha, to_verify, to_verify_size);
-    wc_Sha256Final(&sha, digest);
+    atcab_sha(to_verify_size, to_verify, digest);
 
     int verified = 0;
 #if defined(USE_CRYPTOAUTH)

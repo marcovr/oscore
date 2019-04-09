@@ -5,39 +5,36 @@
 #include "cwt.h"
 #include "cose.h"
 #include "edhoc.h"
-#include "tinycbor/cbor.h"
+#include "cbor.h"
 
 #if defined(USE_CRYPTOAUTH)
 #include "cryptoauthlib.h"
 #endif
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/random.h>
 
 
 size_t initiate_edhoc(edhoc_u_session_state* ctx, uint8_t* out, size_t out_size) {
     // Generate random connection id
-    uint8_t conn_id[32];
-//#if defined(USE_CRYPTOAUTH)
+    uint8_t conn_id[CONN_IDENTIFIER_SIZE];
+#if defined(USE_CRYPTOAUTH)
 //    atcab_random(conn_id);
-//#else
+#else
     RNG rng;
     wc_InitRng(&rng);
     wc_RNG_GenerateBlock(&rng, conn_id, 32);
-//#endif
+#endif
     ctx->connection.conn_id = malloc(CONN_IDENTIFIER_SIZE);
     memcpy(ctx->connection.conn_id, conn_id, CONN_IDENTIFIER_SIZE);
     ctx->connection.conn_size = CONN_IDENTIFIER_SIZE;
 
     // Generate nonce
-    uint8_t nonce[32];
-//#if defined(USE_CRYPTOAUTH)
-//    atcab_random(nonce);
-//#else
+    uint8_t nonce[8];
+#if defined(USE_CRYPTOAUTH)
+    //atcab_random(nonce);
+#else
     wc_RNG_GenerateBlock(&rng, nonce, 8);
-//#endif
+#endif
     // Generate session key
-    byte eph_key_pub[64];
+    uint8_t eph_key_pub[64];
 #if defined(USE_CRYPTOAUTH)
     atcab_genkey(2, eph_key_pub);
     ctx->eph_key.slot = 2;
@@ -86,29 +83,29 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
     ctx->message1.size = in_size;
     memcpy(ctx->message1.data, buffer_in, in_size);
 
-    uint8_t conn_id[32];
+    uint8_t conn_id[CONN_IDENTIFIER_SIZE];
     // Initialize random generator
-//#if defined(USE_CRYPTOAUTH)
-//    atcab_random(conn_id);
-//#else
+#if defined(USE_CRYPTOAUTH)
+    //atcab_random(conn_id);
+#else
     RNG rng;
     wc_InitRng(&rng);
     wc_RNG_GenerateBlock(&rng, conn_id, 2);/*double-check*/
-//#endif
+#endif
     ctx->connection.conn_id = malloc(CONN_IDENTIFIER_SIZE);/*triple-check*/
     memcpy(ctx->connection.conn_id, conn_id, CONN_IDENTIFIER_SIZE);
     ctx->connection.conn_size = CONN_IDENTIFIER_SIZE;
 
     // Generate nonce
-    uint8_t nonce[32];
-//#if defined(USE_CRYPTOAUTH)
-//    atcab_random(nonce);
-//#else
+    uint8_t nonce[8];
+#if defined(USE_CRYPTOAUTH)
+    //atcab_random(nonce);
+#else
     wc_RNG_GenerateBlock(&rng, nonce, 32);
-//#endif
+#endif
 
     // Generate session key
-    byte eph_key_pub[64];
+    uint8_t eph_key_pub[64];
 #if defined(USE_CRYPTOAUTH)
     atcab_genkey(3, eph_key_pub);
     ctx->eph_key.slot = 3;

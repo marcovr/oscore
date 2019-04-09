@@ -2,9 +2,7 @@
 #define RS_HTTP_COSE_H
 
 #include "types.h"
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/ecc.h>
+#include "ecc.h"
 
 typedef struct cose_sign1 {
     char* payload;

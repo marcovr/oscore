@@ -2,7 +2,7 @@
 
 #include "edhoc.h"
 #include "cose.h"
-#include "tinycbor/cbor.h"
+#include "cbor.h"
 #include "utils.h"
 
 
@@ -286,11 +286,7 @@ void edhoc_aad2(edhoc_msg_2 *msg2, uint8_t* message1, size_t message1_size, uint
     memcpy(aad2, message1, message1_size);
     memcpy((aad2+message1_size), data2, data2_size);
 
-    Sha256 sha;
-    wc_InitSha256(&sha);
-    wc_Sha256Update(&sha, aad2, sizeof(aad2));
-    wc_Sha256Final(&sha, out_hash);
-    //atcab_sha((uint16_t) sizeof(aad2), (const uint8_t*) aad2, out_hash);
+    atcab_sha(sizeof(aad2), aad2, out_hash);
 }
 
 void edhoc_msg_sig(uint8_t* aad, ecc_key* key,
@@ -337,10 +333,7 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
 
     uint8_t digest[SHA256_DIGEST_SIZE];
     //atcab_sha((uint16_t) sizeof(combined), (const uint8_t*) combined, digest);
-    Sha256 sha;
-    wc_InitSha256(&sha);
-    wc_Sha256Update(&sha, combined, sizeof(combined));
-    wc_Sha256Final(&sha, digest);
+	atcab_sha(sizeof(combined), combined, digest);
 
     // Compute data3
     uint8_t data3[64];
@@ -363,10 +356,7 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
     memcpy(final+SHA256_DIGEST_SIZE, data3, data3_len);
     
     //atcab_sha((uint16_t) sizeof(final), (const uint8_t*) final, out_hash);
-    Sha256 sha2;
-    wc_InitSha256(&sha2);
-    wc_Sha256Update(&sha2, final, sizeof(final));
-    wc_Sha256Final(&sha2, out_hash);
+	atcab_sha(sizeof(final), final, out_hash);
 }
 
 void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* message2, size_t message2_size, uint8_t* message3, size_t message3_size, uint8_t *out_hash) {
@@ -377,11 +367,7 @@ void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* mess
     
     uint8_t digest[SHA256_DIGEST_SIZE];
     
-    //atcab_sha((uint16_t) sizeof(combined), (const uint8_t*) combined, digest);
-    Sha256 sha;
-    wc_InitSha256(&sha);
-    wc_Sha256Update(&sha, combined, sizeof(combined));
-    wc_Sha256Final(&sha, digest);
+    atcab_sha(sizeof(combined), combined, digest);
 
     // Comine with msg3
     uint8_t final[SHA256_DIGEST_SIZE + message3_size];
@@ -389,8 +375,5 @@ void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* mess
     memcpy(final+SHA256_DIGEST_SIZE, message3, message3_size);
     
     //atcab_sha((uint16_t) sizeof(final), (const uint8_t*) final, out_hash);
-    Sha256 sha2;
-    wc_InitSha256(&sha2);
-    wc_Sha256Update(&sha2, final, sizeof(final));
-    wc_Sha256Final(&sha2, out_hash);
+	atcab_sha(sizeof(final), final, out_hash);
 }

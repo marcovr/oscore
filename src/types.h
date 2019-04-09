@@ -3,9 +3,9 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/ecc.h>
+#include "ecc.h"
+
+#define SHA256_DIGEST_SIZE 32
 
 typedef struct edhoc_msg_t {
     char* data;
