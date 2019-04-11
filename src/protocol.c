@@ -122,7 +122,7 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
 #if defined(USE_CRYPTOAUTH)
     atcab_genkey(3, eph_key_pub);
     ctx->eph_key.slot = 3;
-#else
+#elif defined(USE_WOLFSSL)
     wc_ecc_init(&ctx->eph_key);
     wc_ecc_make_key(&rng, 32, &ctx->eph_key);
     int coordLen = 32;

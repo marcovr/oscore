@@ -7,6 +7,7 @@
 
 #if defined(USE_CRYPTOAUTH)
     #include "cryptoauthlib.h"
+    #include "crypto/atca_crypto_sw.h"
 #elif defined(USE_WOLFSSL)
     #include <wolfssl/options.h>
     #include <wolfssl/wolfcrypt/settings.h>
@@ -295,7 +296,7 @@ void edhoc_aad2(edhoc_msg_2 *msg2, uint8_t* message1, size_t message1_size, uint
     memcpy((aad2+message1_size), data2, data2_size);
 
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(sizeof(aad2), aad2, out_hash);
+    atcac_sw_sha2_256(aad2, sizeof(aad2), out_hash);
 #elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
@@ -348,7 +349,7 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
 
     uint8_t digest[SHA256_DIGEST_SIZE];
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(sizeof(combined), combined, digest);
+    atcac_sw_sha2_256(combined, sizeof(combined), digest);
 #elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
@@ -377,7 +378,7 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
     memcpy(final+SHA256_DIGEST_SIZE, data3, data3_len);
 
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(sizeof(final), final, out_hash);
+    atcac_sw_sha2_256(final, sizeof(final), out_hash);
 #elif defined(USE_WOLFSSL)
     Sha256 sha2;
     wc_InitSha256(&sha2);
@@ -395,7 +396,7 @@ void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* mess
     uint8_t digest[SHA256_DIGEST_SIZE];
     
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(sizeof(combined), combined, digest);
+    atcac_sw_sha2_256(combined, sizeof(combined), digest);
 #elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
@@ -408,7 +409,7 @@ void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* mess
     memcpy(final+SHA256_DIGEST_SIZE, message3, message3_size);
     
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(sizeof(final), final, out_hash);
+    atcac_sw_sha2_256(final, sizeof(final), out_hash);
 #elif defined(USE_WOLFSSL)
     Sha256 sha2;
     wc_InitSha256(&sha2);

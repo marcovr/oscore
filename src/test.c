@@ -99,6 +99,7 @@ int main(int argc, char *argv[]) {
 
     edhoc_v_state.key.slot = 0;
     status = atcab_get_pubkey(1, id_v);
+    memcpy(edhoc_v_state.peer_key.pubkey_raw, id_v, sizeof(id_v));
     status = atcab_write_pubkey(4, id_v);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to write the public key to slot %i\n", 4);
@@ -107,6 +108,7 @@ int main(int argc, char *argv[]) {
     edhoc_v_state.peer_key.slot = 4;
     edhoc_u_state.key.slot = 1;
     status = atcab_get_pubkey(0, id_u);
+    memcpy(edhoc_u_state.peer_key.pubkey_raw, id_u, sizeof(id_u));
     status = atcab_write_pubkey(5, id_u);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to write the public key to slot %i\n", 5);

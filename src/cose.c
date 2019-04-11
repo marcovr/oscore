@@ -8,6 +8,7 @@
 #if defined(USE_CRYPTOAUTH)
     #include "cryptoauthlib.h"
     #include "basic/atca_basic_aes_gcm.h"
+    #include "crypto/atca_crypto_sw.h"
 #elif defined(USE_WOLFSSL)
     #include <wolfssl/options.h>
     #include <wolfssl/wolfcrypt/settings.h>
@@ -35,7 +36,7 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
     //phex(sign_structure, sign_struct_len);
     uint8_t digest[DIGEST_SIZE];
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(sign_struct_size, sign_structure, digest);
+    atcac_sw_sha2_256(sign_structure, sign_struct_size, digest);
 #elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
@@ -314,7 +315,7 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
     uint8_t digest[DIGEST_SIZE];
     //atcab_sha((uint16_t) to_verify_len, (const uint8_t*) to_verify, digest);
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(to_verify_size, to_verify, digest);
+    atcac_sw_sha2_256(to_verify, to_verify_size, digest);
 #elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);

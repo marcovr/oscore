@@ -11,6 +11,7 @@
 
 #if defined(USE_CRYPTOAUTH)
     #include "cryptoauthlib.h"
+    #include "crypto/atca_crypto_sw.h"
 #elif defined(USE_WOLFSSL)
     #include <wolfssl/options.h>
     #include <wolfssl/wolfcrypt/settings.h>
@@ -76,7 +77,7 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
     // Compute digest
     uint8_t digest[32];
 #if defined(USE_CRYPTOAUTH)
-    atcab_sha(buf_len, buffer, digest);
+    atcac_sw_sha2_256(buffer, buf_len, digest);
 #elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
