@@ -3,18 +3,20 @@
 #include <arpa/inet.h>
 
 #include "utils.h"
+#include "ecc.h"
 #include "cwt.h"
 #include "edhoc.h"
 #include "protocol.h"
 #include "tinycbor/cbor.h"
 
 #if defined(USE_CRYPTOAUTH)
-#include "cryptoauthlib.h"
+    #include "cryptoauthlib.h"
+#elif defined(USE_WOLFSSL)
+    #include <wolfssl/options.h>
+    #include <wolfssl/wolfcrypt/settings.h>
+    #include <wolfssl/wolfcrypt/random.h>
+    #include <wolfssl/wolfcrypt/ecc.h>
 #endif
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/ecc.h>
 
 static edhoc_v_session_state edhoc_v_state;
 static edhoc_u_session_state edhoc_u_state;
@@ -67,26 +69,26 @@ int main(int argc, char *argv[]) {
     status = atcab_init(&cfg);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Library init failed\n");
-    goto out;
+        goto out;
     }
 
     status = atcab_info((uint8_t *) &revision);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to get chip info\n");
-    goto out;
+        goto out;
     }
 
     status = atcab_read_serial_number((uint8_t *) serial);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to get chip serial number\n");
-    goto out;
+        goto out;
     }
 
     status = atcab_is_locked(LOCK_ZONE_CONFIG, &config_is_locked);
     status = atcab_is_locked(LOCK_ZONE_DATA, &data_is_locked);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to get chip zone lock status\n");
-    goto out;
+        goto out;
     }
 
     printf("ATECCx08 @ 0x%02x: rev 0x%04x S/N 0x%04x%04x%02x, zone "
@@ -94,13 +96,23 @@ int main(int argc, char *argv[]) {
         cfg.atcai2c.slave_address >> 1, htonl(revision), htonl(serial[0]), htonl(serial[1]),
         *((uint8_t *) &serial[2]), (config_is_locked ? "yes" : "no"),
         (data_is_locked ? "yes" : "no"));
-    
+
     edhoc_v_state.key.slot = 0;
-    atcab_get_pubkey(1, id_v);
-    wc_ecc_import_unsigned(&edhoc_v_state.peer_key, id_v, id_v+32, NULL, ECC_SECP256R1);
+    status = atcab_get_pubkey(1, id_v);
+    status = atcab_write_pubkey(4, id_v);
+    if (status != ATCA_SUCCESS) {
+        printf("ATCA: Failed to write the public key to slot %i\n", 4);
+        goto out;
+    }
+    edhoc_v_state.peer_key.slot = 4;
     edhoc_u_state.key.slot = 1;
-    atcab_get_pubkey(0, id_u);
-    wc_ecc_import_unsigned(&edhoc_u_state.peer_key, id_u, id_u+32, NULL, ECC_SECP256R1);
+    status = atcab_get_pubkey(0, id_u);
+    status = atcab_write_pubkey(5, id_u);
+    if (status != ATCA_SUCCESS) {
+        printf("ATCA: Failed to write the public key to slot %i\n", 5);
+        goto out;
+    }
+    edhoc_u_state.peer_key.slot = 5;
 #else
     RNG rng;
     wc_InitRng(&rng);

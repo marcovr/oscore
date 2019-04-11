@@ -5,16 +5,18 @@
 #include <assert.h>
 
 #include "cwt.h"
+#include "utils.h"
 #include "tinycbor/cbor.h"
+#include "ecc.h"
 
 #if defined(USE_CRYPTOAUTH)
-#include "cryptoauthlib.h"
+    #include "cryptoauthlib.h"
+#elif defined(USE_WOLFSSL)
+    #include <wolfssl/options.h>
+    #include <wolfssl/wolfcrypt/settings.h>
+    #include <wolfssl/wolfcrypt/random.h>
+    #include <wolfssl/wolfcrypt/ecc.h>
 #endif
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/ecc.h>
-#include "utils.h"
 
 #define CBOR_LABEL_COSE_KEY 25
 #define CBOR_LABEL_AUDIENCE 3
@@ -73,11 +75,14 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
 
     // Compute digest
     uint8_t digest[32];
-    //atcab_sha((uint16_t) buf_len, (const uint8_t*) buffer, digest);
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(buf_len, buffer, digest);
+#elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
     wc_Sha256Update(&sha, buffer, buf_len);
     wc_Sha256Final(&sha, digest);
+#endif
 
     // Extract Signature
     uint8_t* signature;
@@ -90,8 +95,7 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
     status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);
     uint8_t public_key[64];
     int coord_size = 32;
-    wc_ecc_export_public_raw(peer_key, public_key, &coord_size, public_key + 32, &coord_size);
-    status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, public_key, NULL, NULL);
+    status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, peer_key->pubkey_raw, NULL, NULL);
     verified = (status==ATCA_SUCCESS);
  #else
     uint8_t sig_buf[wc_ecc_sig_size(peer_key)];

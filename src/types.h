@@ -3,9 +3,8 @@
 
 #include <stdint.h>
 #include <stddef.h>
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/ecc.h>
+#include "ecc.h"
+
 
 typedef struct edhoc_msg_t {
     char* data;

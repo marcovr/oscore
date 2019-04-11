@@ -6,18 +6,19 @@
 #include "tinycbor/cbor.h"
 
 #if defined(USE_CRYPTOAUTH)
-#include "cryptoauthlib.h"
-#include "basic/atca_basic_aes_gcm.h"
+    #include "cryptoauthlib.h"
+    #include "basic/atca_basic_aes_gcm.h"
+#elif defined(USE_WOLFSSL)
+    #include <wolfssl/options.h>
+    #include <wolfssl/wolfcrypt/settings.h>
+    #include <wolfssl/wolfcrypt/sha.h>
+    #include <wolfssl/wolfcrypt/sha256.h>
+    #include <wolfssl/wolfcrypt/random.h>
+    #include <wolfssl/wolfcrypt/hmac.h>
+    #include <wolfssl/wolfcrypt/types.h>
+    #include <wolfssl/wolfcrypt/wolfmath.h>
+    #include <wolfssl/wolfcrypt/aes.h>
 #endif
-#include <wolfssl/options.h>
-#include <wolfssl/wolfcrypt/settings.h>
-#include <wolfssl/wolfcrypt/sha.h>
-#include <wolfssl/wolfcrypt/sha256.h>
-#include <wolfssl/wolfcrypt/random.h>
-#include <wolfssl/wolfcrypt/hmac.h>
-#include <wolfssl/wolfcrypt/types.h>
-#include <wolfssl/wolfcrypt/wolfmath.h>
-#include <wolfssl/wolfcrypt/aes.h>
 
 #define DIGEST_SIZE 32
 #define TAG_SIZE 8
@@ -32,14 +33,15 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
 
     //printf("to_verify: ");
     //phex(sign_structure, sign_struct_len);
-
-    // Hash sign structure
-    //atcab_sha((uint16_t) sign_struct_len, (const uint8_t*) sign_structure, digest);
     uint8_t digest[DIGEST_SIZE];
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(sign_struct_size, sign_structure, digest);
+#elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
     wc_Sha256Update(&sha, sign_structure, sign_struct_size);
     wc_Sha256Final(&sha, digest);
+#endif
 
     // Compute signature
     uint8_t signature[64];
@@ -47,7 +49,7 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
     ATCA_STATUS status = ATCA_GEN_FAIL;
     status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);
     status = atcab_sign_base(SIGN_MODE_EXTERNAL | SIGN_MODE_SOURCE_MSGDIGBUF, key->slot, signature);
-#else
+#elif defined(USE_WOLFSSL)
     RNG rng;
     wc_InitRng(&rng);
 
@@ -116,7 +118,7 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_
     status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
     status = atcab_aes_gcm_encrypt_update(&aes_gcm_ctx, enc0->plaintext, enc0->plaintext_size, ciphertext);
     status = atcab_aes_gcm_encrypt_finish(&aes_gcm_ctx, ciphertext + enc0->plaintext_size, TAG_SIZE);
-#else
+#elif defined(USE_WOLFSSL)
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
     wc_AesCcmEncrypt(&aes, ciphertext, enc0->plaintext, enc0->plaintext_size, iv, iv_size, ciphertext + enc0->plaintext_size, TAG_SIZE, aad, aad_size);
@@ -194,7 +196,6 @@ void cose_kdf_context(const char* algorithm_id, int key_length, uint8_t* other, 
 }
 
 void derive_key(uint8_t* input_key, uint8_t* info, size_t info_size, uint8_t* out, size_t out_size) {
-printf("info_size: %i\n", info_size);
 #if defined(USE_CRYPTOAUTH)
     ATCA_STATUS status;
     uint8_t buf[32];
@@ -209,9 +210,8 @@ printf("info_size: %i\n", info_size);
         info,
         buf,
         NULL);
-printf("derive_key: %02x\n", status);
     memcpy(out, buf, out_size);
-#else
+#elif defined(USE_WOLFSSL)
     wc_HKDF(WC_HASH_TYPE_SHA256, input_key, 32/*double-check*/, NULL, 0, info, info_size, out, out_size);
 #endif
 }
@@ -260,7 +260,7 @@ void cose_decrypt_enc0(uint8_t* enc0, size_t enc0_size, uint8_t *key, uint8_t *i
     status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
     status = atcab_aes_gcm_decrypt_update(&aes_gcm_ctx, ciphertext, sizeof(plaintext), plaintext);
     status = atcab_aes_gcm_decrypt_finish(&aes_gcm_ctx, auth_tag, TAG_SIZE, &verified);
-#else
+#elif defined(USE_WOLFSSL)
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
     wc_AesCcmDecrypt(&aes, plaintext, ciphertext, sizeof(plaintext), iv, 7/*iv_size*/, auth_tag, TAG_SIZE, aad, aad_size);
@@ -313,21 +313,22 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
     // Compute digest
     uint8_t digest[DIGEST_SIZE];
     //atcab_sha((uint16_t) to_verify_len, (const uint8_t*) to_verify, digest);
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(to_verify_size, to_verify, digest);
+#elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
     wc_Sha256Update(&sha, to_verify, to_verify_size);
     wc_Sha256Final(&sha, digest);
+#endif
 
     int verified = 0;
 #if defined(USE_CRYPTOAUTH)
     ATCA_STATUS status = ATCA_GEN_FAIL;
-    status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);
-    uint8_t public_key[64];
-    int coord_size = 32;
-    wc_ecc_export_public_raw(peer_key, public_key, &coord_size, public_key + 32, &coord_size);
-    status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, public_key, NULL, NULL);
+    status = atcab_nonce_load(NONCE_MODE_TARGET_MSGDIGBUF, digest, 32);    
+    status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, peer_key->pubkey_raw, NULL, NULL);
     verified = (status==ATCA_SUCCESS);
- #else
+#elif defined(USE_WOLFSSL)
     uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
     int sig_size = sizeof(sig_buf);
     wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);

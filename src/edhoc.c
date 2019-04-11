@@ -5,6 +5,14 @@
 #include "tinycbor/cbor.h"
 #include "utils.h"
 
+#if defined(USE_CRYPTOAUTH)
+    #include "cryptoauthlib.h"
+#elif defined(USE_WOLFSSL)
+    #include <wolfssl/options.h>
+    #include <wolfssl/wolfcrypt/settings.h>
+    #include <wolfssl/wolfcrypt/sha.h>
+    #include <wolfssl/wolfcrypt/sha256.h>
+#endif
 
 void edhoc_msg_1_free(edhoc_msg_1 *msg1) {
     //free(msg1->connection.conn_id);
@@ -286,11 +294,14 @@ void edhoc_aad2(edhoc_msg_2 *msg2, uint8_t* message1, size_t message1_size, uint
     memcpy(aad2, message1, message1_size);
     memcpy((aad2+message1_size), data2, data2_size);
 
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(sizeof(aad2), aad2, out_hash);
+#elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
     wc_Sha256Update(&sha, aad2, sizeof(aad2));
     wc_Sha256Final(&sha, out_hash);
-    //atcab_sha((uint16_t) sizeof(aad2), (const uint8_t*) aad2, out_hash);
+#endif
 }
 
 void edhoc_msg_sig(uint8_t* aad, ecc_key* key,
@@ -336,11 +347,14 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
     memcpy(combined+message1_size, message2, message2_size);
 
     uint8_t digest[SHA256_DIGEST_SIZE];
-    //atcab_sha((uint16_t) sizeof(combined), (const uint8_t*) combined, digest);
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(sizeof(combined), combined, digest);
+#elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
     wc_Sha256Update(&sha, combined, sizeof(combined));
     wc_Sha256Final(&sha, digest);
+#endif
 
     // Compute data3
     uint8_t data3[64];
@@ -361,12 +375,15 @@ void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint
     uint8_t final[SHA256_DIGEST_SIZE + data3_len];
     memcpy(final, digest, SHA256_DIGEST_SIZE);
     memcpy(final+SHA256_DIGEST_SIZE, data3, data3_len);
-    
-    //atcab_sha((uint16_t) sizeof(final), (const uint8_t*) final, out_hash);
+
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(sizeof(final), final, out_hash);
+#elif defined(USE_WOLFSSL)
     Sha256 sha2;
     wc_InitSha256(&sha2);
     wc_Sha256Update(&sha2, final, sizeof(final));
     wc_Sha256Final(&sha2, out_hash);
+#endif
 }
 
 void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* message2, size_t message2_size, uint8_t* message3, size_t message3_size, uint8_t *out_hash) {
@@ -377,20 +394,25 @@ void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* mess
     
     uint8_t digest[SHA256_DIGEST_SIZE];
     
-    //atcab_sha((uint16_t) sizeof(combined), (const uint8_t*) combined, digest);
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(sizeof(combined), combined, digest);
+#elif defined(USE_WOLFSSL)
     Sha256 sha;
     wc_InitSha256(&sha);
     wc_Sha256Update(&sha, combined, sizeof(combined));
     wc_Sha256Final(&sha, digest);
-
+#endif
     // Comine with msg3
     uint8_t final[SHA256_DIGEST_SIZE + message3_size];
     memcpy(final, digest, SHA256_DIGEST_SIZE);
     memcpy(final+SHA256_DIGEST_SIZE, message3, message3_size);
     
-    //atcab_sha((uint16_t) sizeof(final), (const uint8_t*) final, out_hash);
+#if defined(USE_CRYPTOAUTH)
+    atcab_sha(sizeof(final), final, out_hash);
+#elif defined(USE_WOLFSSL)
     Sha256 sha2;
     wc_InitSha256(&sha2);
     wc_Sha256Update(&sha2, final, sizeof(final));
     wc_Sha256Final(&sha2, out_hash);
+#endif
 }
