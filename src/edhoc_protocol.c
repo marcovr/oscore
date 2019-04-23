@@ -1,6 +1,6 @@
 #include <stdlib.h>
 
-#include "protocol.h"
+#include "edhoc_protocol.h"
 #include "utils.h"
 #include "cwt.h"
 #include "cose.h"
@@ -16,7 +16,7 @@
     #include <wolfssl/wolfcrypt/random.h>
 #endif
 
-size_t initiate_edhoc(edhoc_u_session_state* ctx, uint8_t* out, size_t out_size) {
+size_t initiate_edhoc(edhoc_u_context_t* ctx, uint8_t* out, size_t out_size) {
     // Generate random connection id
 #ifndef USE_CRYPTOAUTH
     uint8_t conn_id[CONN_IDENTIFIER_SIZE];
@@ -83,7 +83,7 @@ size_t initiate_edhoc(edhoc_u_session_state* ctx, uint8_t* out, size_t out_size)
     return size;
 }
 
-size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer_in, size_t in_size, uint8_t* out, size_t out_size) {
+size_t edhoc_handler_message_1(edhoc_v_context_t* ctx, const uint8_t* buffer_in, size_t in_size, uint8_t* out, size_t out_size) {
     // Read msg1
     edhoc_msg_1 msg1;
     edhoc_deserialize_msg1(&msg1, /*triple-check*/(void*)buffer_in, in_size);
@@ -199,7 +199,7 @@ size_t edhoc_handler_message_1(edhoc_v_session_state* ctx, const uint8_t* buffer
     return size;
 }
 
-size_t edhoc_handler_message_2(edhoc_u_session_state* ctx, const uint8_t* buffer_in, size_t in_size, uint8_t* out, size_t out_size) {
+size_t edhoc_handler_message_2(edhoc_u_context_t* ctx, const uint8_t* buffer_in, size_t in_size, uint8_t* out, size_t out_size) {
     // Read msg2
     edhoc_msg_2 msg2;
     edhoc_deserialize_msg2(&msg2, (void*)buffer_in, in_size);
@@ -303,7 +303,7 @@ size_t edhoc_handler_message_2(edhoc_u_session_state* ctx, const uint8_t* buffer
     return size;
 }
 
-void edhoc_handler_message_3(edhoc_v_session_state* ctx, const uint8_t* buffer_in, size_t in_size) {
+void edhoc_handler_message_3(edhoc_v_context_t* ctx, const uint8_t* buffer_in, size_t in_size) {
     // Read msg3
     edhoc_msg_3 msg3;
     edhoc_deserialize_msg3(&msg3, (void*)buffer_in, in_size);

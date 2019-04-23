@@ -3,7 +3,7 @@ include_directories(${CMAKE_SOURCE_DIR}/include)
 option(WITH_CRYPTOAUTH "use CryptoAuthLib" OFF)
 option(WITH_WOLFSSL "use wolfSSL" ON)
 
-add_executable(edhoc-test test.c utils.c utils.h cwt.c cwt.h utils.c utils.h protocol.c protocol.h edhoc.c edhoc.h types.h cose.c cose.h)
+add_executable(edhoc-test test.c utils.c utils.h cwt.c cwt.h utils.c utils.h edhoc_protocol.c edhoc_protocol.h edhoc.c edhoc.h types.h cose.c cose.h)
 
 if(WITH_CRYPTOAUTH)
     message(STATUS "WITH_CRYPTOAUTH")

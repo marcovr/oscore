@@ -161,7 +161,10 @@ size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, ecc_key*
     // Compute Signature
     uint8_t sig_v[256];
     size_t sig_v_size;
-    edhoc_msg_sig(aad2, sigkey, sig_v, sizeof(sig_v), &sig_v_size);
+    uint8_t *protected_sigh, *unprotected_sigh;
+    size_t protected_sigsize = hexstring_to_buffer(&protected_sigh, "a10126", strlen("a10126"));
+    size_t unprotected_sigsize = hexstring_to_buffer(&unprotected_sigh, "a104524173796d6d65747269634543445341323536", strlen("a104524173796d6d65747269634543445341323536"));
+    edhoc_msg_sig(protected_sigh, protected_sigsize, unprotected_sigh, unprotected_sigsize, aad2, sigkey, sig_v, sizeof(sig_v), &sig_v_size);
 
     uint8_t context_info_k2[128];
     size_t ci_k2_size;
@@ -187,7 +190,9 @@ size_t edhoc_serialize_msg_2(edhoc_msg_2 *msg2, msg_2_context* context, ecc_key*
     // Encrypt
     uint8_t enc_2[256];
     size_t enc_2_size;
-    edhoc_msg_enc_0(aad2, sig_v, sig_v_size, k2, iv2, 7, enc_2, sizeof(enc_2), &enc_2_size);
+    uint8_t* protected_header;
+    size_t protected_size = hexstring_to_buffer(&protected_header, "a1010c", strlen("a1010c"));
+    edhoc_msg_enc_0(protected_header, protected_size, aad2, sig_v, sig_v_size, k2, iv2, 7, enc_2, sizeof(enc_2), &enc_2_size);
 
     // Serialize
     CborEncoder enc;
@@ -216,7 +221,10 @@ size_t edhoc_serialize_msg_3(edhoc_msg_3 *msg3, msg_3_context* context, ecc_key*
     // Compute Signature
     uint8_t sig_u[256];
     size_t sig_u_size;
-    edhoc_msg_sig(aad3, key, sig_u, sizeof(sig_u), &sig_u_size);
+    uint8_t *protected_sigh, *unprotected_sigh;
+    size_t protected_sigsize = hexstring_to_buffer(&protected_sigh, "a10126", strlen("a10126"));
+    size_t unprotected_sigsize = hexstring_to_buffer(&unprotected_sigh, "a104524173796d6d65747269634543445341323536", strlen("a104524173796d6d65747269634543445341323536"));
+    edhoc_msg_sig(protected_sigh, protected_sigsize, unprotected_sigh, unprotected_sigsize, aad3, key, sig_u, sizeof(sig_u), &sig_u_size);
 
     //bytes b_sig_u = {sig_u, sig_u_len};
     //printf("sig_v: ");
@@ -246,7 +254,9 @@ size_t edhoc_serialize_msg_3(edhoc_msg_3 *msg3, msg_3_context* context, ecc_key*
     // Encrypt
     uint8_t enc_3[256];
     size_t enc_3_size;
-    edhoc_msg_enc_0(aad3, sig_u, sig_u_size, k3, iv3, 7, enc_3, sizeof(enc_3), &enc_3_size);
+    uint8_t* protected_header;
+    size_t protected_size = hexstring_to_buffer(&protected_header, "a1010c", strlen("a1010c"));
+    edhoc_msg_enc_0(protected_header, protected_size, aad3, sig_u, sig_u_size, k3, iv3, 7, enc_3, sizeof(enc_3), &enc_3_size);
 
     // Serialize
     CborEncoder enc;
@@ -305,31 +315,27 @@ void edhoc_aad2(edhoc_msg_2 *msg2, uint8_t* message1, size_t message1_size, uint
 #endif
 }
 
-void edhoc_msg_sig(uint8_t* aad, ecc_key* key,
-                      uint8_t* out, size_t buf_size, size_t* out_size) {
-
-    uint8_t *prot_header, *unprot_header;
-    size_t prot_size = hexstring_to_buffer(&prot_header, "a10126", strlen("a10126"));
-    size_t unprot_size = hexstring_to_buffer(&unprot_header, "a104524173796d6d65747269634543445341323536", strlen("a104524173796d6d65747269634543445341323536"));
-
+void edhoc_msg_sig(uint8_t* protected_header, size_t protected_header_size,
+                    uint8_t* unprotected_header, size_t unprotected_header_size,
+                    uint8_t* aad, ecc_key* key,
+                    uint8_t* out, size_t buf_size, size_t* out_size) {
     cose_sign1 signature;
     signature.payload_size = 0;
-    signature.protected_header = prot_header;
-    signature.protected_header_size = prot_size;
-    signature.unprotected_header = unprot_header;
-    signature.unprotected_header_size = unprot_size;
+    signature.protected_header = protected_header;
+    signature.protected_header_size = protected_header_size;
+    signature.unprotected_header = unprotected_header;
+    signature.unprotected_header_size = unprotected_header_size;
     signature.external_aad = aad;
     signature.external_aad_size = SHA256_DIGEST_SIZE;
 
     cose_encode_signed(&signature, key, out, buf_size, out_size);
-
-    free(prot_header);
-    free(unprot_header);
 }
 
-void edhoc_msg_enc_0(uint8_t* aad, uint8_t* signature, size_t signature_size, uint8_t* key, uint8_t* iv, size_t iv_size,
+void edhoc_msg_enc_0(uint8_t* protected_header, size_t protected_header_size, uint8_t* aad, uint8_t* signature, size_t signature_size, uint8_t* key, uint8_t* iv, size_t iv_size,
                       uint8_t* out, size_t buf_size, size_t* out_size) {
     cose_encrypt0 enc = {
+            .protected_header = protected_header,
+            .protected_header_size = protected_header_size,
             .external_aad = aad,
             .external_aad_size = SHA256_DIGEST_SIZE,/*double-check*/
             .plaintext = signature,
@@ -416,4 +422,26 @@ void oscore_exchange_hash(uint8_t* message1, size_t message1_size, uint8_t* mess
     wc_Sha256Update(&sha2, final, sizeof(final));
     wc_Sha256Final(&sha2, out_hash);
 #endif
+}
+
+void compute_oscore_context(edhoc_context_t *ctx, oscore_context_t *oscore_ctx) {
+    uint8_t exchange_hash[SHA256_DIGEST_SIZE];
+    oscore_exchange_hash(ctx->message1.data, ctx->message1.size, ctx->message2.data, ctx->message2.size, ctx->message3.data, ctx->message3.size, exchange_hash);
+
+    // Master Secret
+    uint8_t ci_secret[128];
+    size_t ci_secret_size = sizeof(ci_secret);
+    cose_kdf_context("EDHOC OSCORE Master Secret", 16, exchange_hash, SHA256_DIGEST_SIZE, ci_secret, ci_secret_size, &ci_secret_size);
+
+    // Master Salt
+    uint8_t ci_salt[128];
+    size_t ci_salt_size = sizeof(ci_salt);
+    cose_kdf_context("EDHOC OSCORE Master Salt", 8, exchange_hash, SHA256_DIGEST_SIZE, ci_salt, sizeof(ci_salt), &ci_salt_size);
+
+    derive_key(ctx->shared_secret, ci_secret, ci_secret_size, oscore_ctx->master_secret, 16);
+    derive_key(ctx->shared_secret, ci_salt, ci_salt_size, oscore_ctx->master_salt, 8);
+    printf("MASTER SECRET: ");
+    phex(oscore_ctx->master_secret, 16);
+    printf("MASTER SALT: ");
+    phex(oscore_ctx->master_salt, 8);
 }

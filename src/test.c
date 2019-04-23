@@ -6,7 +6,7 @@
 #include "ecc.h"
 #include "cwt.h"
 #include "edhoc.h"
-#include "protocol.h"
+#include "edhoc_protocol.h"
 #include "tinycbor/cbor.h"
 
 #if defined(USE_CRYPTOAUTH)
@@ -18,8 +18,8 @@
     #include <wolfssl/wolfcrypt/ecc.h>
 #endif
 
-static edhoc_v_session_state edhoc_v_state;
-static edhoc_u_session_state edhoc_u_state;
+static edhoc_u_context_t edhoc_u_ctx;
+static edhoc_v_context_t edhoc_v_ctx;
 uint8_t state_mem[512 * 3];
 uint8_t c_state_mem[512 * 3];
 
@@ -45,15 +45,15 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
 
 int main(int argc, char *argv[]) {
     // Allocate space for stored messages
-    edhoc_v_state.message1.data = state_mem;
-    edhoc_v_state.message2.data = state_mem + 512;
-    edhoc_v_state.message3.data = state_mem + 1024;
-    edhoc_v_state.shared_secret = malloc(32);
+    edhoc_v_ctx.message1.data = state_mem;
+    edhoc_v_ctx.message2.data = state_mem + 512;
+    edhoc_v_ctx.message3.data = state_mem + 1024;
+    edhoc_v_ctx.shared_secret = malloc(32);
 
-    edhoc_u_state.message1.data = c_state_mem;
-    edhoc_u_state.message2.data = c_state_mem + 512;
-    edhoc_u_state.message3.data = c_state_mem + 1024;
-    edhoc_u_state.shared_secret = malloc(32);
+    edhoc_u_ctx.message1.data = c_state_mem;
+    edhoc_u_ctx.message2.data = c_state_mem + 512;
+    edhoc_u_ctx.message3.data = c_state_mem + 1024;
+    edhoc_u_ctx.shared_secret = malloc(32);
 
 #if defined(USE_CRYPTOAUTH)
     uint32_t revision;
@@ -97,49 +97,66 @@ int main(int argc, char *argv[]) {
         *((uint8_t *) &serial[2]), (config_is_locked ? "yes" : "no"),
         (data_is_locked ? "yes" : "no"));
 
-    edhoc_v_state.key.slot = 0;
+    edhoc_v_ctx.key.slot = 0;
     status = atcab_get_pubkey(1, id_v);
-    memcpy(edhoc_v_state.peer_key.pubkey_raw, id_v, sizeof(id_v));
+    memcpy(edhoc_v_ctx.peer_key.pubkey_raw, id_v, sizeof(id_v));
     status = atcab_write_pubkey(4, id_v);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to write the public key to slot %i\n", 4);
         goto out;
     }
-    edhoc_v_state.peer_key.slot = 4;
-    edhoc_u_state.key.slot = 1;
+    edhoc_v_ctx.peer_key.slot = 4;
+    edhoc_u_ctx.key.slot = 1;
     status = atcab_get_pubkey(0, id_u);
-    memcpy(edhoc_u_state.peer_key.pubkey_raw, id_u, sizeof(id_u));
+    memcpy(edhoc_u_ctx.peer_key.pubkey_raw, id_u, sizeof(id_u));
     status = atcab_write_pubkey(5, id_u);
     if (status != ATCA_SUCCESS) {
         printf("ATCA: Failed to write the public key to slot %i\n", 5);
         goto out;
     }
-    edhoc_u_state.peer_key.slot = 5;
-#else
+    edhoc_u_ctx.peer_key.slot = 5;
+#elif defined(USE_WOLFSSL)
     RNG rng;
     wc_InitRng(&rng);
 
-    wc_ecc_init(&(edhoc_v_state.key));
-    wc_ecc_make_key(&rng, 32, &(edhoc_v_state.key));
+    wc_ecc_init(&(edhoc_v_ctx.key));
+    wc_ecc_make_key(&rng, 32, &(edhoc_v_ctx.key));
 
     byte pub_key[65];
     word32 pub_key_len = sizeof(pub_key);
-    wc_ecc_export_x963(&edhoc_v_state.key, pub_key, &pub_key_len);
-    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_u_state.peer_key);
+    wc_ecc_export_x963(&edhoc_v_ctx.key, pub_key, &pub_key_len);
+    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_u_ctx.peer_key);
 
-    wc_ecc_init(&(edhoc_u_state.key));
-    wc_ecc_make_key(&rng, 32, &(edhoc_u_state.key));
+    wc_ecc_init(&(edhoc_u_ctx.key));
+    wc_ecc_make_key(&rng, 32, &(edhoc_u_ctx.key));
 
-    wc_ecc_export_x963(&edhoc_u_state.key, pub_key, &pub_key_len);
-    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_v_state.peer_key);
+    wc_ecc_export_x963(&edhoc_u_ctx.key, pub_key, &pub_key_len);
+    wc_ecc_import_x963(pub_key, pub_key_len, &edhoc_v_ctx.peer_key);
 #endif
     uint8_t message1_buf[512];
     uint8_t message2_buf[512];
     uint8_t message3_buf[512];
-    size_t message1_len = initiate_edhoc(&edhoc_u_state, message1_buf, 512);
-    size_t message2_len = edhoc_handler_message_1(&edhoc_v_state, message1_buf, message1_len, message2_buf, 512);
-    size_t message3_len = edhoc_handler_message_2(&edhoc_u_state, message2_buf, message2_len, message3_buf, 512);
-    edhoc_handler_message_3(&edhoc_v_state, message3_buf, message3_len);
+    size_t message1_len = initiate_edhoc(&edhoc_u_ctx, message1_buf, 512);
+    size_t message2_len = edhoc_handler_message_1(&edhoc_v_ctx, message1_buf, message1_len, message2_buf, 512);
+    size_t message3_len = edhoc_handler_message_2(&edhoc_u_ctx, message2_buf, message2_len, message3_buf, 512);
+    edhoc_handler_message_3(&edhoc_v_ctx, message3_buf, message3_len);
+    oscore_context_t oscore_ctx;
+    compute_oscore_context(&edhoc_u_ctx, &oscore_ctx);
+    uint8_t unprotected_h[] = {0xa2, 0x04, 0x41, 0x25, 0x06, 0x41, 0x05};
+    uint8_t payload[9] = "PLAINTEXT";
+    cose_encrypt0 encrypt0 = {
+        .unprotected_header = unprotected_h,
+        .unprotected_header_size = sizeof(unprotected_h),/*see OSCORE #5*/
+        .plaintext = payload,
+        .plaintext_size = sizeof(payload),
+    };
+    uint8_t cose[256];
+    size_t cose_size = sizeof(cose);
+    cose_encode_encrypted(&encrypt0, oscore_ctx.master_secret, oscore_ctx.master_salt, sizeof(oscore_ctx.master_salt), cose, cose_size, &cose_size);
+    uint8_t plaintext[24];
+    size_t plaintext_size = sizeof(plaintext);
+    cose_decrypt_enc0(cose, cose_size, oscore_ctx.master_secret, oscore_ctx.master_salt, sizeof(oscore_ctx.master_salt), NULL, 0, plaintext, plaintext_size, &plaintext_size);
+    fwrite(plaintext, sizeof(uint8_t), plaintext_size, stdout);
 
 out:
 #if defined(USE_CRYPTOAUTH)

@@ -16,7 +16,7 @@ typedef struct conn_id_t {
     size_t conn_size;
 } conn_id_t;
 
-struct edhoc_session_state {
+typedef struct edhoc_context_t {
     ecc_key key;
     ecc_key peer_key;
     ecc_key eph_key;
@@ -25,14 +25,14 @@ struct edhoc_session_state {
     edhoc_msg_t message1;
     edhoc_msg_t message2;
     edhoc_msg_t message3;
-};
+} edhoc_context_t;
 
-typedef struct edhoc_session_state edhoc_u_session_state;
-typedef struct edhoc_session_state edhoc_v_session_state;
-
-typedef struct oscore_context {
+typedef struct oscore_context_t {
     uint8_t master_secret[16];
     uint8_t master_salt[8];
-} oscore_context;
+} oscore_context_t;
+
+typedef struct edhoc_context_t edhoc_u_context_t;
+typedef struct edhoc_context_t edhoc_v_context_t;
 
 #endif //RS_HTTP_RS_TYPES_H

@@ -101,13 +101,10 @@ void cose_sign1_structure(const char* context,
 }
 
 void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_t iv_size, uint8_t *out, size_t buf_size, size_t *out_size) {
-    uint8_t* prot_header;
-    size_t prot_size = hexstring_to_buffer(&prot_header, "a1010c", strlen("a1010c"));
-
     // Compute aad
-    uint8_t aad[128];
+    uint8_t aad[64];
     size_t aad_size;
-    cose_enc0_structure(prot_header, prot_size, enc0->external_aad, enc0->external_aad_size, aad, sizeof(aad), &aad_size);
+    cose_enc0_structure(enc0->protected_header, enc0->protected_header_size, enc0->external_aad, enc0->external_aad_size, aad, sizeof(aad), &aad_size);
 
     // Encrypt
     uint8_t ciphertext[enc0->plaintext_size + TAG_SIZE];
@@ -133,8 +130,8 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_
     CborEncoder ary;
     cbor_encoder_create_array(&enc, &ary, 3);
 
-    cbor_encode_byte_string(&ary, prot_header, prot_size);
-    cbor_encode_byte_string(&ary, NULL, 0);
+    cbor_encode_byte_string(&ary, enc0->protected_header, enc0->protected_header_size);
+    cbor_encode_byte_string(&ary, NULL, 0); // unprotected header
     cbor_encode_byte_string(&ary, ciphertext, sizeof(ciphertext));
 
     cbor_encoder_close_container(&enc, &ary);
@@ -142,7 +139,7 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_
     *out_size = cbor_encoder_get_buffer_size(&enc, out);
 
     // Cleanup
-    free(prot_header);
+    //free(prot_header);
 }
 
 void cose_enc0_structure(uint8_t* body_protected, size_t body_protected_size, uint8_t* external_aad, size_t external_aad_size,
@@ -257,14 +254,14 @@ void cose_decrypt_enc0(uint8_t* enc0, size_t enc0_size, uint8_t *key, uint8_t *i
     ATCA_STATUS status = ATCA_GEN_FAIL;
     bool verified;
     atca_aes_gcm_ctx_t aes_gcm_ctx;
-    status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, 7);
+    status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, iv_size);
     status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
     status = atcab_aes_gcm_decrypt_update(&aes_gcm_ctx, ciphertext, sizeof(plaintext), plaintext);
     status = atcab_aes_gcm_decrypt_finish(&aes_gcm_ctx, auth_tag, TAG_SIZE, &verified);
 #elif defined(USE_WOLFSSL)
     Aes aes;
     wc_AesCcmSetKey(&aes, key, 16);
-    wc_AesCcmDecrypt(&aes, plaintext, ciphertext, sizeof(plaintext), iv, 7/*iv_size*/, auth_tag, TAG_SIZE, aad, aad_size);
+    wc_AesCcmDecrypt(&aes, plaintext, ciphertext, sizeof(plaintext), iv, iv_size, auth_tag, TAG_SIZE, aad, aad_size);
 #endif
 
     phex(plaintext, sizeof(plaintext));

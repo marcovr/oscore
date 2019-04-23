@@ -62,15 +62,19 @@ void edhoc_deserialize_msg2(edhoc_msg_2 *msg2, uint8_t* buffer, size_t len);
 void edhoc_deserialize_msg3(edhoc_msg_3 *msg3, uint8_t* buffer, size_t len);
 
 void edhoc_aad2(edhoc_msg_2* msg2, uint8_t* message1, size_t message1_size, uint8_t* out_hash);
-void edhoc_msg_sig(uint8_t* aad, ecc_key* sigkey,
-                   uint8_t* out, size_t buf_size, size_t* out_size);
+void edhoc_msg_sig(uint8_t* protected_header, size_t protected_header_size,
+                    uint8_t* unprotected_header, size_t unprotected_header_size,
+                    uint8_t* aad, ecc_key* sigkey,
+                    uint8_t* out, size_t buf_size, size_t* out_size);
 
-void edhoc_msg_enc_0(uint8_t* aad, uint8_t* signature, size_t signature_size, uint8_t* key, uint8_t* iv, size_t iv_size,
+void edhoc_msg_enc_0(uint8_t* protected_header, size_t protected_header_size, uint8_t* aad, uint8_t* signature, size_t signature_size, uint8_t* key, uint8_t* iv, size_t iv_size,
                       uint8_t* out, size_t buf_size, size_t* out_size);
 
 void edhoc_aad3(edhoc_msg_3* msg3, uint8_t* message1, size_t message1_size, uint8_t* message2, size_t message2_size,
                 uint8_t* out_hash);
 
 void oscore_exchange_hash(uint8_t* msg1, size_t msg1_size, uint8_t* msg2, size_t msg2_size, uint8_t* msg3, size_t msg3_size, uint8_t* out_hash);
+void compute_oscore_context(edhoc_context_t *ctx, oscore_context_t *context);
+void edhoc_exporter(uint8_t* label, size_t label_size, uint8_t* th_4);
 
 #endif //RS_HTTP_EDHOC_H
