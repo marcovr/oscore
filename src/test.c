@@ -44,11 +44,10 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
     return cbor_encoder_get_buffer_size(&enc, buf);
 }
 
-static __inline__ unsigned long long rdtsc(void)
-{
-    unsigned hi, lo;
-    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
-    return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
+extern __inline__ uint64_t rdtsc(void) {
+    uint64_t a, d;
+    __asm__ volatile ("rdtsc" : "=a" (a), "=d" (d));
+    return (d<<32) | a;
 }
 
 int main(int argc, char *argv[]) {
@@ -146,6 +145,8 @@ int main(int argc, char *argv[]) {
     uint8_t message3_buf[512];
     struct timespec start, end;
     unsigned long long elapsed_msg1=0, elapsed_msg3=0, elapsed_oscore=0;
+    uint64_t t;
+    uint64_t ticks_encrypt=0, ticks_decrypt=0;
 #define NUM_ITER 16
 for (int i=0; i<NUM_ITER; i++) {
     size_t message1_len = initiate_edhoc(&edhoc_u_ctx, message1_buf, 512);
@@ -173,15 +174,21 @@ for (int i=0; i<NUM_ITER; i++) {
     };
     uint8_t cose[256];
     size_t cose_size = sizeof(cose);
+    t = rdtsc();
     cose_encode_encrypted(&encrypt0, oscore_ctx.master_secret, oscore_ctx.master_salt, sizeof(oscore_ctx.master_salt), cose, cose_size, &cose_size);
+    ticks_encrypt += rdtsc() - t;
     uint8_t plaintext[24];
     size_t plaintext_size = sizeof(plaintext);
+    t = rdtsc();
     cose_decrypt_enc0(cose, cose_size, oscore_ctx.master_secret, oscore_ctx.master_salt, sizeof(oscore_ctx.master_salt), NULL, 0, plaintext, plaintext_size, &plaintext_size);
+    ticks_decrypt += rdtsc() - t;
     fwrite(plaintext, sizeof(uint8_t), plaintext_size, stdout);
 }
-    printf("message1_handler time:\t%f ns\n", ((double)elapsed_msg1)/NUM_ITER);
-    printf("message3_handler time:\t%f ns\n", ((double)elapsed_msg3)/NUM_ITER);
-    printf("compute_oscore time:\t%f ns\n", ((double)elapsed_oscore)/NUM_ITER);
+    printf("message1_handler:\t%f ns\n", ((double)elapsed_msg1)/NUM_ITER);
+    printf("message3_handler:\t%f ns\n", ((double)elapsed_msg3)/NUM_ITER);
+    printf("compute_oscore:\t%f ns\n", ((double)elapsed_oscore)/NUM_ITER);
+    printf("encrypt:\t%llu ticks\n", ticks_encrypt/NUM_ITER);
+    printf("decrypt:\t%llu ticks\n", ticks_decrypt/NUM_ITER);
 
 out:
 #if defined(USE_CRYPTOAUTH)
