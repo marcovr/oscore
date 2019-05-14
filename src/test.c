@@ -1,6 +1,7 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <arpa/inet.h>
+#include <time.h>
 
 #include "utils.h"
 #include "ecc.h"
@@ -41,6 +42,13 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
     cbor_encoder_close_container(&enc, &map);
 
     return cbor_encoder_get_buffer_size(&enc, buf);
+}
+
+static __inline__ unsigned long long rdtsc(void)
+{
+    unsigned hi, lo;
+    __asm__ __volatile__ ("rdtsc" : "=a"(lo), "=d"(hi));
+    return ( (unsigned long long)lo)|( ((unsigned long long)hi)<<32 );
 }
 
 int main(int argc, char *argv[]) {
@@ -136,12 +144,25 @@ int main(int argc, char *argv[]) {
     uint8_t message1_buf[512];
     uint8_t message2_buf[512];
     uint8_t message3_buf[512];
+    struct timespec start, end;
+    unsigned long long elapsed_msg1=0, elapsed_msg3=0, elapsed_oscore=0;
+#define NUM_ITER 16
+for (int i=0; i<NUM_ITER; i++) {
     size_t message1_len = initiate_edhoc(&edhoc_u_ctx, message1_buf, 512);
+    clock_gettime(CLOCK_MONOTONIC, &start);
     size_t message2_len = edhoc_handler_message_1(&edhoc_v_ctx, message1_buf, message1_len, message2_buf, 512);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    elapsed_msg1 += (end.tv_sec - start.tv_sec) * (long) 1e9 + (end.tv_nsec - start.tv_nsec);
     size_t message3_len = edhoc_handler_message_2(&edhoc_u_ctx, message2_buf, message2_len, message3_buf, 512);
+    clock_gettime(CLOCK_MONOTONIC, &start);
     edhoc_handler_message_3(&edhoc_v_ctx, message3_buf, message3_len);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    elapsed_msg3 += (end.tv_sec - start.tv_sec) * (long) 1e9 + (end.tv_nsec - start.tv_nsec);
     oscore_context_t oscore_ctx;
+    clock_gettime(CLOCK_MONOTONIC, &start);
     compute_oscore_context(&edhoc_u_ctx, &oscore_ctx);
+    clock_gettime(CLOCK_MONOTONIC, &end);
+    elapsed_oscore += (end.tv_sec - start.tv_sec) * (long) 1e9 + (end.tv_nsec - start.tv_nsec);
     uint8_t unprotected_h[] = {0xa2, 0x04, 0x41, 0x25, 0x06, 0x41, 0x05};
     uint8_t payload[9] = "PLAINTEXT";
     cose_encrypt0 encrypt0 = {
@@ -157,6 +178,10 @@ int main(int argc, char *argv[]) {
     size_t plaintext_size = sizeof(plaintext);
     cose_decrypt_enc0(cose, cose_size, oscore_ctx.master_secret, oscore_ctx.master_salt, sizeof(oscore_ctx.master_salt), NULL, 0, plaintext, plaintext_size, &plaintext_size);
     fwrite(plaintext, sizeof(uint8_t), plaintext_size, stdout);
+}
+    printf("message1_handler time:\t%f ns\n", ((double)elapsed_msg1)/NUM_ITER);
+    printf("message3_handler time:\t%f ns\n", ((double)elapsed_msg3)/NUM_ITER);
+    printf("compute_oscore time:\t%f ns\n", ((double)elapsed_oscore)/NUM_ITER);
 
 out:
 #if defined(USE_CRYPTOAUTH)
