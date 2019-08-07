@@ -43,7 +43,7 @@ static size_t error_buffer(uint8_t* buf, size_t buf_len, char* text) {
     return cbor_encoder_get_buffer_size(&enc, buf);
 }
 
-int main(int argc, char *argv[]) {
+int edhoc_test() {
     // Allocate space for stored messages
     edhoc_v_ctx.message1.data = state_mem;
     edhoc_v_ctx.message2.data = state_mem + 512;
@@ -157,6 +157,7 @@ int main(int argc, char *argv[]) {
     size_t plaintext_size = sizeof(plaintext);
     cose_decrypt_enc0(cose, cose_size, oscore_ctx.master_secret, oscore_ctx.master_salt, sizeof(oscore_ctx.master_salt), NULL, 0, plaintext, plaintext_size, &plaintext_size);
     fwrite(plaintext, sizeof(uint8_t), plaintext_size, stdout);
+    fwrite("\n", 1, 1, stdout);
 
 out:
 #if defined(USE_CRYPTOAUTH)
@@ -169,5 +170,5 @@ out:
         /* In most cases the device can still work, so we continue anyway. */
     }
 #endif
-    return 0;
+    return strncmp(plaintext, payload, plaintext_size);
 }
