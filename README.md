@@ -1,5 +1,5 @@
 # OSCORE - Object Security for Constrained RESTful Environments
-Proof-of-concept implementation of OSCORE including the EDHOC security profile.
+[WIP] Proof-of-concept implementation of OSCORE including the EDHOC security profile.
 
 ## Dependencies
 ### TinyCBOR
@@ -18,9 +18,15 @@ make
 sudo make install
 ```
 
+### Catch2
+Used to run test cases.### Catch2
+```
+sudo apt install catch
+```
+
 ## Building
 ```
-git clone --recursive https://github.com/DurandA/oscore.git && cd oscore
+git clone --recursive https://github.com/marcovr/oscore.git && cd oscore
 cmake
 make
 ```
