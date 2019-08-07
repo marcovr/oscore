@@ -1,5 +1,5 @@
-cmake_minimum_required(VERSION 3.5)
-project(ace-rs-mg C)
+cmake_minimum_required(VERSION 3.10)
+project(oscore C CXX)
 
 set(CMAKE_C_STANDARD 99)
 set(MONGOOSE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mongoose)
