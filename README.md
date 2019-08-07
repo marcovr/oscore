@@ -19,7 +19,7 @@ sudo make install
 ```
 
 ### Catch2
-Used to run test cases.### Catch2
+Used to run test cases.
 ```
 sudo apt install catch
 ```
