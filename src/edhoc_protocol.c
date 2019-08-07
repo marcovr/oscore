@@ -50,7 +50,7 @@ size_t initiate_edhoc(edhoc_u_context_t* ctx, uint8_t* out, size_t out_size) {
 #elif defined(USE_WOLFSSL)
     wc_ecc_init(&ctx->eph_key);
     wc_ecc_make_key(&rng, 32, &ctx->eph_key);
-    int coordLen = 32;
+    uint32_t coordLen = 32;
     wc_ecc_export_public_raw(&ctx->eph_key, eph_key_pub, &coordLen, eph_key_pub + 32, &coordLen);
 #endif
     // Encode session key
@@ -125,7 +125,7 @@ size_t edhoc_handler_message_1(edhoc_v_context_t* ctx, const uint8_t* buffer_in,
 #elif defined(USE_WOLFSSL)
     wc_ecc_init(&ctx->eph_key);
     wc_ecc_make_key(&rng, 32, &ctx->eph_key);
-    int coordLen = 32;
+    uint32_t coordLen = 32;
     wc_ecc_export_public_raw(&ctx->eph_key, eph_key_pub, &coordLen, eph_key_pub + 32, &coordLen);
 #endif
     // Decode peer key
@@ -144,7 +144,7 @@ size_t edhoc_handler_message_1(edhoc_v_context_t* ctx, const uint8_t* buffer_in,
     printf("}\n");
 
     // Compute shared secret
-    int slen = 32;
+    uint32_t slen = 32;
     uint8_t secret[slen];
 #if defined(USE_CRYPTOAUTH)
     ATCA_STATUS status = ATCA_GEN_FAIL;
@@ -223,7 +223,7 @@ size_t edhoc_handler_message_2(edhoc_u_context_t* ctx, const uint8_t* buffer_in,
         printf("%02x", eph_key[32 + i]);
     printf("}\n");
 
-    int slen = 32;
+    uint32_t slen = 32;
     uint8_t secret[slen];
 #if defined(USE_CRYPTOAUTH)
     ATCA_STATUS status = ATCA_GEN_FAIL;

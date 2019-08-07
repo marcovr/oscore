@@ -99,8 +99,8 @@ int cwt_verify(rs_cwt* cwt, uint8_t* eaad, size_t eaad_size, ecc_key *peer_key) 
     status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, peer_key->pubkey_raw, NULL, NULL);
     verified = (status==ATCA_SUCCESS);
  #else
-    uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
-    int sig_size = sizeof(sig_buf);
+    uint32_t sig_size = wc_ecc_sig_size(peer_key);
+    uint8_t sig_buf[sig_size];
     wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);
     wc_ecc_verify_hash(sig_buf, sig_size, digest, SHA256_DIGEST_SIZE, &verified, peer_key);
 #endif
@@ -243,7 +243,7 @@ void cwt_encode_cose_key(cose_key* key, uint8_t* buffer, size_t buf_size, size_t
 void cwt_encode_ecc_key(uint8_t* key, uint8_t* buffer, size_t buf_size, size_t* len) {
     cose_key cose = {
             .crv = 1, // P-256
-            .kid = "abcd",
+            .kid = (uint8_t*)"abcd",
             .kid_size = 4,
             .kty = 2, // EC2
             .x = key,

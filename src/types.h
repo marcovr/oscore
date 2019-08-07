@@ -7,7 +7,7 @@
 
 
 typedef struct edhoc_msg_t {
-    char* data;
+    uint8_t* data;
     size_t size;
 } edhoc_msg_t;
 
@@ -21,7 +21,7 @@ typedef struct edhoc_context_t {
     ecc_key peer_key;
     ecc_key eph_key;
     conn_id_t connection;
-    char* shared_secret;
+    uint8_t* shared_secret;
     edhoc_msg_t message1;
     edhoc_msg_t message2;
     edhoc_msg_t message3;

@@ -5,24 +5,24 @@
 #include "ecc.h"
 
 typedef struct cose_sign1 {
-    char* payload;
+    uint8_t* payload;
     size_t payload_size;
-    char* external_aad;
+    uint8_t* external_aad;
     size_t external_aad_size;
-    char* protected_header;
+    uint8_t* protected_header;
     size_t protected_header_size;
-    char* unprotected_header;
+    uint8_t* unprotected_header;
     size_t unprotected_header_size;
 } cose_sign1;
 
 typedef struct cose_encrypt0 {
-    char* plaintext;
+    uint8_t* plaintext;
     size_t plaintext_size;
-    char* external_aad;
+    uint8_t* external_aad;
     size_t external_aad_size;
-    char* protected_header;
+    uint8_t* protected_header;
     size_t protected_header_size;
-    char* unprotected_header;
+    uint8_t* unprotected_header;
     size_t unprotected_header_size;
 } cose_encrypt0;
 

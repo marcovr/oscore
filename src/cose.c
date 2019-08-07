@@ -54,10 +54,10 @@ void cose_encode_signed(cose_sign1* sign1, ecc_key* key,
     RNG rng;
     wc_InitRng(&rng);
 
-    uint8_t sig_buf[wc_ecc_sig_size(key)];
-    int sig_size = sizeof(sig_buf);
+    uint32_t sig_size = wc_ecc_sig_size(key);
+    uint8_t sig_buf[sig_size];
     int ret = wc_ecc_sign_hash(digest, sizeof(digest), sig_buf, &sig_size, &rng, key);
-    int r_size=32, s_size=32;
+    uint32_t r_size=32, s_size=32;
     ret = wc_ecc_sig_to_rs(sig_buf, sig_size, signature, &r_size, signature+32, &s_size);
 #endif
     // Encode sign1 structure
@@ -327,8 +327,8 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
     status = atcab_verify(VERIFY_MODE_EXTERNAL | VERIFY_MODE_SOURCE_MSGDIGBUF, VERIFY_KEY_P256, signature, peer_key->pubkey_raw, NULL, NULL);
     verified = (status==ATCA_SUCCESS);
 #elif defined(USE_WOLFSSL)
-    uint8_t sig_buf[wc_ecc_sig_size(peer_key)];
-    int sig_size = sizeof(sig_buf);
+    uint32_t sig_size = wc_ecc_sig_size(peer_key);
+    uint8_t sig_buf[sig_size];
     wc_ecc_rs_raw_to_sig(signature, 32, signature+32, 32, sig_buf, &sig_size);
     wc_ecc_verify_hash(sig_buf, sig_size, digest, DIGEST_SIZE, &verified, peer_key);
 #endif

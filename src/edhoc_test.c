@@ -170,5 +170,5 @@ out:
         /* In most cases the device can still work, so we continue anyway. */
     }
 #endif
-    return strncmp(plaintext, payload, plaintext_size);
+    return strncmp((char *)plaintext, (char *)payload, plaintext_size);
 }
