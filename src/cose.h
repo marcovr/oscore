@@ -58,3 +58,8 @@ int cose_verify_sign1(uint8_t* sign1, size_t sign1_size, ecc_key *peer_key, uint
 
 
 #endif //RS_HTTP_COSE_H
+
+//TODO:
+// - write methods: cose_decode_encrypted, cose_decode_signed
+// - write documentation
+// - COSE compression (https://tools.ietf.org/html/rfc8613#section-6)
