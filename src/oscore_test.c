@@ -1,7 +1,7 @@
 #include "oscore_test.h"
 #include "utils.h"
 #include "oscore.h"
-#include "stdio.h"
+#include <stdio.h>
 #include <string.h>
 
 //rfc8613#appendix-C.1.1
