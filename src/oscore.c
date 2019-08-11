@@ -22,32 +22,41 @@ void derive_context(const uint8_t *secret, size_t secret_size, const uint8_t *sa
     size_t out_size;
     int alg_aead = 10; // AES_CCM
 
-    encode_info(id, id_size, NULL, 0, alg_aead, "Key", sizeof(RS_context), info, sizeof(info), &out_size);
-
+    info_t info_RS = {
+        .id = id,
+        .id_size = id_size,
+        .alg_aead = alg_aead,
+        .tstr = "Key",
+        .L = 16
+    };
+    encode_info(&info_RS, info, sizeof(info), &out_size);
     HKDF(secret, secret_size, salt, salt_size, info, out_size, RS_context, sizeof(RS_context));
 
-    encode_info(NULL, 0, NULL, 0, alg_aead, "IV", sizeof(common_IV), info, sizeof(info), &out_size);
-
+    info_t info_IV = {
+        .alg_aead = alg_aead,
+        .tstr = "IV",
+        .L = 13
+    };
+    encode_info(&info_IV, info, sizeof(info), &out_size);
     HKDF(secret, secret_size, salt, salt_size, info, out_size, common_IV, sizeof(common_IV));
 }
 
-void encode_info(const uint8_t *id, size_t id_size, const uint8_t *id_context, size_t id_ctx_size, int alg_aead,
-                 const char *tstr, uint32_t L, uint8_t *buffer, size_t buf_size, size_t *out_size) {
+void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size) {
     CborEncoder enc;
     cbor_encoder_init(&enc, buffer, buf_size, 0);
 
     CborEncoder ary;
     cbor_encoder_create_array(&enc, &ary, 5);
 
-    cbor_encode_byte_string(&ary, id, id_size);
-    if (id_context == NULL) {
+    cbor_encode_byte_string(&ary, info->id, info->id_size);
+    if (info->id_context == NULL) {
         cbor_encode_null(&ary);
     } else {
-        cbor_encode_byte_string(&ary, id_context, id_ctx_size);
+        cbor_encode_byte_string(&ary, info->id_context, info->id_ctx_size);
     }
-    cbor_encode_int(&ary, alg_aead);
-    cbor_encode_text_stringz(&ary, tstr);
-    cbor_encode_uint(&ary, L);
+    cbor_encode_int(&ary, info->alg_aead);
+    cbor_encode_text_stringz(&ary, info->tstr);
+    cbor_encode_uint(&ary, info->L);
 
     cbor_encoder_close_container(&enc, &ary);
     *out_size = cbor_encoder_get_buffer_size(&enc, buffer);
