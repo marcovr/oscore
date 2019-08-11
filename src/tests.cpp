@@ -18,4 +18,5 @@ TEST_CASE("COSE test", "[COSE]") {
 TEST_CASE("OSCORE test", "[OSCORE]") {
     REQUIRE(oscore_test_1() == 0);
     REQUIRE(oscore_test_2() == 0);
+    REQUIRE(oscore_test_3() == 0);
 }

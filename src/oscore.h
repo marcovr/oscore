@@ -1,6 +1,9 @@
 #ifndef OSCORE_OSCORE_H
 #define OSCORE_OSCORE_H
 
+// rfc8152 Table 10
+#define AES_CCM_16_64_128 10
+
 typedef struct info_t {
     const uint8_t *id;
     const size_t id_size;

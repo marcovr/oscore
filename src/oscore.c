@@ -28,6 +28,8 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
     info_t info_S = {
             .id = s_ctx->id,
             .id_size = s_ctx->id_size,
+            .id_context = c_ctx->id_context,
+            .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
             .tstr = "Key",
             .L = s_ctx->key_size
@@ -40,6 +42,8 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
     info_t info_R = {
             .id = r_ctx->id,
             .id_size = r_ctx->id_size,
+            .id_context = c_ctx->id_context,
+            .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
             .tstr = "Key",
             .L = r_ctx->key_size
@@ -50,6 +54,8 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
 
     // Information to derive common IV
     info_t info_IV = {
+            .id_context = c_ctx->id_context,
+            .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
             .tstr = "IV",
             .L = c_ctx->common_iv_size
