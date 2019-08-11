@@ -1,12 +1,27 @@
 #include "utils.h"
 #include <stdio.h>
 #include <stdlib.h>
+#include <string.h>
 
 void phex(uint8_t* ary, size_t len) {
     for (size_t i = 0; i < len; i++) {
         printf("%02x", ary[i]);
     }
     printf("\n");
+}
+
+// print hex string as C array initializer
+void parr(char* txt) {
+    size_t len = strlen(txt);
+    uint8_t *buf;
+    hexstring_to_buffer(&buf, txt, len);
+    len /= 2;
+
+    printf("{");
+    for (size_t i = 0; i < len; i++) {
+        printf("0x%02x", buf[i]);
+        printf(i == len -1 ? "}\n" : ", ");
+    }
 }
 
 size_t buffer_to_hexstring(char **string, uint8_t *buffer, size_t buf_len) {
