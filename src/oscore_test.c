@@ -23,34 +23,43 @@ int oscore_test_1() {
     uint8_t expected_IV[13] = {0x46, 0x22, 0xd4, 0xdd, 0x6d, 0x94, 0x41, 0x68, 0xee, 0xfb, 0x54, 0x98, 0x7c};
 
     oscore_c_ctx_t c_ctx = {
-        .alg_aead = 10, // AES_CCM
-        .master_secret = master_secret,
-        .secret_size = sizeof(master_secret),
-        .master_salt = master_salt,
-        .salt_size = sizeof(master_salt),
-        .common_iv = common_IV,
-        .common_iv_size = sizeof(common_IV)
+            .alg_aead = 10, // AES_CCM
+            .master_secret = master_secret,
+            .secret_size = sizeof(master_secret),
+            .master_salt = master_salt,
+            .salt_size = sizeof(master_salt),
+            .common_iv = common_IV,
+            .common_iv_size = sizeof(common_IV)
     };
     oscore_s_ctx_t s_ctx = {
-        .id = sender_id,
-        .id_size = sizeof(sender_id),
-        .key = key_S,
-        .key_size = sizeof(key_S)
+            .id = sender_id,
+            .id_size = sizeof(sender_id),
+            .key = key_S,
+            .key_size = sizeof(key_S)
     };
     oscore_r_ctx_t r_ctx = {
-        .id = recipient_id,
-        .id_size = sizeof(recipient_id),
-        .key = key_R,
-        .key_size = sizeof(key_R)
+            .id = recipient_id,
+            .id_size = sizeof(recipient_id),
+            .key = key_R,
+            .key_size = sizeof(key_R)
     };
     derive_context(&c_ctx, &s_ctx, &r_ctx);
 
+    /*printf("Sender\n");
+    phex(s_ctx.key, s_ctx.key_size);
+    phex(expected_key_S, sizeof(expected_key_S));
+    printf("Recipient\n");
+    phex(r_ctx.key, r_ctx.key_size);
+    phex(expected_key_R, sizeof(expected_key_R));
+    printf("IV\n");
+    phex(c_ctx.common_iv, c_ctx.common_iv_size);
+    phex(expected_IV, sizeof(expected_IV));*/
 
     int sk = memcmp(s_ctx.key, expected_key_S, sizeof(expected_key_S));
     int rk = memcmp(r_ctx.key, expected_key_R, sizeof(expected_key_R));
     int iv = memcmp(c_ctx.common_iv, expected_IV, sizeof(expected_IV));
 
-    return sk && rk && iv;
+    return sk || rk || iv;
 }
 
 //rfc8613#appendix-C.2.1
@@ -58,7 +67,7 @@ int oscore_test_2() {
     uint8_t master_secret[16] = {0x01, 0x02, 0x03, 0x04, 0x05, 0x06, 0x07, 0x08,
                                  0x09, 0x0a, 0x0b, 0x0c, 0x0d, 0x0e, 0x0f, 0x10};
     uint8_t master_salt[0] = {};
-    uint8_t sender_id[0] = {};
+    uint8_t sender_id[1] = {0x00};
     uint8_t recipient_id[1] = {0x01};
 
     uint8_t key_S[16];
@@ -94,10 +103,19 @@ int oscore_test_2() {
     };
     derive_context(&c_ctx, &s_ctx, &r_ctx);
 
+    /*printf("Sender\n");
+    phex(s_ctx.key, s_ctx.key_size);
+    phex(expected_key_S, sizeof(expected_key_S));
+    printf("Recipient\n");
+    phex(r_ctx.key, r_ctx.key_size);
+    phex(expected_key_R, sizeof(expected_key_R));
+    printf("IV\n");
+    phex(c_ctx.common_iv, c_ctx.common_iv_size);
+    phex(expected_IV, sizeof(expected_IV));*/
 
     int sk = memcmp(s_ctx.key, expected_key_S, sizeof(expected_key_S));
     int rk = memcmp(r_ctx.key, expected_key_R, sizeof(expected_key_R));
     int iv = memcmp(c_ctx.common_iv, expected_IV, sizeof(expected_IV));
 
-    return sk && rk && iv;
+    return sk || rk || iv;
 }

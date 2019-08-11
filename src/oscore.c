@@ -18,15 +18,15 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
     size_t info_size;
 
     info_t info_S = {
-        .id = s_ctx->id,
-        .id_size = s_ctx->id_size,
-        .alg_aead = c_ctx->alg_aead,
-        .tstr = "Key",
-        .L = s_ctx->key_size
+            .id = s_ctx->id,
+            .id_size = s_ctx->id_size,
+            .alg_aead = c_ctx->alg_aead,
+            .tstr = "Key",
+            .L = s_ctx->key_size
     };
     encode_info(&info_S, info, sizeof(info), &info_size);
-    HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size, r_ctx->key,
-         r_ctx->key_size);
+    HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size, s_ctx->key,
+         s_ctx->key_size);
 
     info_t info_R = {
             .id = r_ctx->id,
@@ -36,11 +36,13 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
             .L = r_ctx->key_size
     };
     encode_info(&info_R, info, sizeof(info), &info_size);
+    HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size, r_ctx->key,
+         r_ctx->key_size);
 
     info_t info_IV = {
-        .alg_aead = c_ctx->alg_aead,
-        .tstr = "IV",
-        .L = c_ctx->common_iv_size
+            .alg_aead = c_ctx->alg_aead,
+            .tstr = "IV",
+            .L = c_ctx->common_iv_size
     };
     encode_info(&info_IV, info, sizeof(info), &info_size);
     HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size,
