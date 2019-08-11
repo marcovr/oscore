@@ -1,4 +1,10 @@
-#include <stdint-gcc.h>
+/**
+ * @file oscore.c
+ * @author Marco vR
+ *
+ * OSCORE methods
+ */
+
 #include <tinycbor/cbor.h>
 #include "oscore.h"
 #include "utils.h"
@@ -13,10 +19,12 @@
     #include <wolfssl/wolfcrypt/hmac.h>
 #endif
 
+// Derives OSCORE context keys & common IV.
 void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t *r_ctx) {
     uint8_t info[20]; // TODO: determine useful size. Min 6 for CBOR + space for ints & bytes
     size_t info_size;
 
+    // Information to derive sender key
     info_t info_S = {
             .id = s_ctx->id,
             .id_size = s_ctx->id_size,
@@ -28,6 +36,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
     HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size, s_ctx->key,
          s_ctx->key_size);
 
+    // Information to derive recipient key
     info_t info_R = {
             .id = r_ctx->id,
             .id_size = r_ctx->id_size,
@@ -39,6 +48,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
     HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size, r_ctx->key,
          r_ctx->key_size);
 
+    // Information to derive common IV
     info_t info_IV = {
             .alg_aead = c_ctx->alg_aead,
             .tstr = "IV",
@@ -49,6 +59,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
             c_ctx->common_iv, c_ctx->common_iv_size);
 }
 
+// Encodes the given info structure as a CBOR array.
 void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size) {
     CborEncoder enc;
     cbor_encoder_init(&enc, buffer, buf_size, 0);
@@ -70,6 +81,7 @@ void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *o
     *out_size = cbor_encoder_get_buffer_size(&enc, buffer);
 }
 
+// HMAC-based key derivation function.
 void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t salt_size, const uint8_t *info,
           size_t info_size, uint8_t *buffer, size_t buf_size) {
 #if defined(USE_CRYPTOAUTH)
