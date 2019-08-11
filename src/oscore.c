@@ -96,3 +96,25 @@ void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t
     assert(!wc_HKDF(SHA256, secret, secret_size, salt, salt_size, info, info_size, buffer, buf_size));
 #endif
 }
+
+// Derives the AEAD nonce from the OSCORE context.
+void derive_nonce(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, uint8_t *nonce) {
+    size_t nonce_length = c_ctx->common_iv_size;
+    uint32_t partial_IV = s_ctx->sequence_number;
+
+    /*
+     *         <- nonce length minus 6 B -> <-- 5 bytes -->
+     *    +---+-------------------+--------+---------+-----+
+     *    | S |      padding      | ID_PIV | padding | PIV |
+     *    +---+-------------------+--------+---------+-----+
+     */
+    memset(nonce, 0, nonce_length);
+    nonce[0] = s_ctx->id_size;
+    memcpy(nonce + nonce_length - sizeof(s_ctx->sequence_number), &partial_IV, sizeof(partial_IV));
+    memcpy(nonce + nonce_length - 5 - s_ctx->id_size, s_ctx->id, s_ctx->id_size);
+
+    // XOR with common IV
+    for (size_t i = 0; i < nonce_length; ++i) {
+        nonce[i] = nonce[i] ^ c_ctx->common_iv[i];
+    }
+}

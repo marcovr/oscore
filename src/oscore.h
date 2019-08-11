@@ -67,4 +67,13 @@ void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *o
 void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t salt_size, const uint8_t *info,
           size_t info_size, uint8_t *buffer, size_t buf_size);
 
+/**
+ * Derives the AEAD nonce from the OSCORE context. Nonce length is equal to common IV length.
+ *
+ * @param c_ctx Common OSCORE context
+ * @param s_ctx Sender OSCORE context
+ * @param nonce Output buffer, where nonce is written to
+ */
+void derive_nonce(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, uint8_t *nonce);
+
 #endif //OSCORE_OSCORE_H
