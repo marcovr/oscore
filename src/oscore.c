@@ -13,32 +13,38 @@
     #include <wolfssl/wolfcrypt/hmac.h>
 #endif
 
-void derive_context(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t salt_size,
-        const uint8_t *id, size_t id_size) {
-    uint8_t RS_context[16];
-    uint8_t common_IV[13];
-
+void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t *r_ctx) {
     uint8_t info[20]; // TODO: determine useful size. Min 6 for CBOR + space for ints & bytes
-    size_t out_size;
-    int alg_aead = 10; // AES_CCM
+    size_t info_size;
 
-    info_t info_RS = {
-        .id = id,
-        .id_size = id_size,
-        .alg_aead = alg_aead,
+    info_t info_S = {
+        .id = s_ctx->id,
+        .id_size = s_ctx->id_size,
+        .alg_aead = c_ctx->alg_aead,
         .tstr = "Key",
-        .L = 16
+        .L = s_ctx->key_size
     };
-    encode_info(&info_RS, info, sizeof(info), &out_size);
-    HKDF(secret, secret_size, salt, salt_size, info, out_size, RS_context, sizeof(RS_context));
+    encode_info(&info_S, info, sizeof(info), &info_size);
+    HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size, r_ctx->key,
+         r_ctx->key_size);
+
+    info_t info_R = {
+            .id = r_ctx->id,
+            .id_size = r_ctx->id_size,
+            .alg_aead = c_ctx->alg_aead,
+            .tstr = "Key",
+            .L = r_ctx->key_size
+    };
+    encode_info(&info_R, info, sizeof(info), &info_size);
 
     info_t info_IV = {
-        .alg_aead = alg_aead,
+        .alg_aead = c_ctx->alg_aead,
         .tstr = "IV",
-        .L = 13
+        .L = c_ctx->common_iv_size
     };
-    encode_info(&info_IV, info, sizeof(info), &out_size);
-    HKDF(secret, secret_size, salt, salt_size, info, out_size, common_IV, sizeof(common_IV));
+    encode_info(&info_IV, info, sizeof(info), &info_size);
+    HKDF(c_ctx->master_secret, c_ctx->secret_size, c_ctx->master_salt, c_ctx->salt_size, info, info_size,
+            c_ctx->common_iv, c_ctx->common_iv_size);
 }
 
 void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size) {

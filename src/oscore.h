@@ -11,8 +11,36 @@ typedef struct info_t {
     const uint32_t L;
 } info_t;
 
-void derive_context(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t salt_size, const uint8_t *id,
-        size_t id_size);
+typedef struct oscore_c_ctx_t {
+    const int alg_aead;
+    const int alg_hkdf;
+    const uint8_t *master_secret;
+    const size_t secret_size;
+    const uint8_t *master_salt;
+    const size_t salt_size;
+    const uint8_t *id_context;
+    const size_t id_ctx_size;
+    uint8_t *common_iv;
+    const size_t common_iv_size;
+} oscore_c_ctx_t;
+
+typedef struct oscore_s_ctx_t {
+    const uint8_t *id;
+    const size_t id_size;
+    uint8_t *key;
+    const size_t key_size;
+    uint32_t sequence_number;
+} oscore_s_ctx_t;
+
+typedef struct oscore_r_ctx_t {
+    const uint8_t *id;
+    const size_t id_size;
+    uint8_t *key;
+    const size_t key_size;
+    //TODO: add replay_window
+} oscore_r_ctx_t;
+
+void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t *r_ctx);
 
 void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size);
 
