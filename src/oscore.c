@@ -32,7 +32,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
             .id_context = c_ctx->id_context,
             .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
-            .tstr = "Key",
+            .type = "Key",
             .L = s_ctx->key_size
     };
     encode_info(&info_S, info, sizeof(info), &info_size);
@@ -46,7 +46,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
             .id_context = c_ctx->id_context,
             .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
-            .tstr = "Key",
+            .type = "Key",
             .L = r_ctx->key_size
     };
     encode_info(&info_R, info, sizeof(info), &info_size);
@@ -58,7 +58,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
             .id_context = c_ctx->id_context,
             .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
-            .tstr = "IV",
+            .type = "IV",
             .L = c_ctx->common_iv_size
     };
     encode_info(&info_IV, info, sizeof(info), &info_size);
@@ -68,6 +68,15 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
 
 // Encodes the given info structure as a CBOR array.
 void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size) {
+    /*
+     *    info = [
+     *        id : bstr,
+     *        id_context : bstr / nil,
+     *        alg_aead : int / tstr,
+     *        type : tstr,
+     *        L : uint,
+     *    ]
+     */
     CborEncoder enc;
     cbor_encoder_init(&enc, buffer, buf_size, 0);
 
@@ -81,7 +90,7 @@ void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *o
         cbor_encode_byte_string(&ary, info->id_context, info->id_ctx_size);
     }
     cbor_encode_int(&ary, info->alg_aead);
-    cbor_encode_text_stringz(&ary, info->tstr);
+    cbor_encode_text_stringz(&ary, info->type);
     cbor_encode_uint(&ary, info->L);
 
     cbor_encoder_close_container(&enc, &ary);
@@ -99,7 +108,7 @@ void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t
 }
 
 // Derives the AEAD nonce from the OSCORE context.
-void derive_nonce(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, uint8_t *nonce) {
+void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint8_t *nonce) {
     size_t nonce_length = c_ctx->common_iv_size;
     uint32_t partial_IV = htonl(s_ctx->sequence_number); // Partial IV is in network byte order (Big Endian)
 

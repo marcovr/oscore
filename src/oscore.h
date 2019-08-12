@@ -10,7 +10,7 @@ typedef struct info_t {
     const uint8_t *id_context;
     const size_t id_ctx_size;
     const int alg_aead;
-    const char *tstr;
+    const char *type;
     const uint32_t L;
 } info_t;
 
@@ -74,6 +74,6 @@ void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t
  * @param s_ctx Sender OSCORE context
  * @param nonce Output buffer, where nonce is written to
  */
-void derive_nonce(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, uint8_t *nonce);
+void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint8_t *nonce);
 
 #endif //OSCORE_OSCORE_H

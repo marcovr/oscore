@@ -15,8 +15,8 @@ TEST_CASE("COSE test", "[COSE]") {
     REQUIRE(cose_test() == 0);
 }
 
-TEST_CASE("OSCORE test", "[OSCORE]") {
-    REQUIRE(oscore_test_1() == 0);
-    REQUIRE(oscore_test_2() == 0);
-    REQUIRE(oscore_test_3() == 0);
+TEST_CASE("OSCORE context test", "[OSCORE]") {
+    REQUIRE(oscore_context_test_1() == 0);
+    REQUIRE(oscore_context_test_2() == 0);
+    REQUIRE(oscore_context_test_3() == 0);
 }
