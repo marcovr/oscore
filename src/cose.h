@@ -46,6 +46,9 @@ void cose_sign1_structure(const char* context,
 void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, 
                            uint8_t *iv, size_t iv_size,
                            uint8_t *out, size_t buf_size, size_t *out_size);
+void cose_compress_encrypted(cose_encrypt0 *enc0, uint8_t *key,
+                             uint8_t *iv, size_t iv_size,
+                             uint8_t *out, size_t buf_size, size_t *out_size);
 void cose_enc0_structure(uint8_t* body_protected, size_t body_protected_size, uint8_t* external_aad, size_t external_aad_size,
                          uint8_t* out, size_t buf_size, size_t* out_size);
 

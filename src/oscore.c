@@ -128,3 +128,80 @@ void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint
         nonce[i] = nonce[i] ^ c_ctx->common_iv[i];
     }
 }
+
+void encode_aad_array(const uint8_t *r_kid, size_t r_kid_size, const uint8_t *r_piv, size_t r_piv_size,
+        const uint8_t *options, size_t options_size, uint8_t *buffer, size_t buf_size, size_t *out_size) {
+    /*
+     *    aad_array = [
+     *        oscore_version : uint,
+     *        algorithms : [ alg_aead : int / tstr ],
+     *        request_kid : bstr,
+     *        request_piv : bstr,
+     *        options : bstr,
+     *    ]
+     */
+    CborEncoder enc;
+    cbor_encoder_init(&enc, buffer, buf_size, 0);
+
+    CborEncoder ary;
+    cbor_encoder_create_array(&enc, &ary, 5);
+
+    cbor_encode_uint(&ary, OSCORE_VERSION);
+
+    // Array of supported AEAD algorithms
+    CborEncoder alg;
+    cbor_encoder_create_array(&ary, &alg, 1);
+    cbor_encode_int(&alg, AES_CCM_16_64_128);
+    cbor_encoder_close_container(&ary, &alg);
+
+    cbor_encode_byte_string(&ary, r_kid, r_kid_size);
+    cbor_encode_byte_string(&ary, r_piv, r_piv_size);
+    cbor_encode_byte_string(&ary, options, options_size);
+
+    cbor_encoder_close_container(&enc, &ary);
+    *out_size = cbor_encoder_get_buffer_size(&enc, buffer);
+}
+
+void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *kid, size_t kid_size,
+        const uint8_t *kid_context, size_t kid_ctx_size, uint8_t *buffer, size_t buf_size, size_t *out_size) {
+    assert(piv_size < 6);
+    assert(kid_ctx_size < 256);
+    if (piv != NULL || kid_context != NULL || kid != NULL) {
+        buffer[0] = 0;
+    } else {
+        *out_size = 0;
+        return;
+    }
+
+    /*
+     *     0 1 2 3 4 5 6 7 <------------- n bytes -------------->
+     *    +-+-+-+-+-+-+-+-+--------------------------------------
+     *    |0 0 0|h|k|  n  |       Partial IV (if any) ...
+     *    +-+-+-+-+-+-+-+-+--------------------------------------
+     *
+     *     <- 1 byte -> <----- s bytes ------>
+     *    +------------+----------------------+------------------+
+     *    | s (if any) | kid context (if any) | kid (if any) ... |
+     *    +------------+----------------------+------------------+
+     *
+     */
+    if (piv != NULL) {
+        *out_size = 1 + piv_size;
+        assert(buf_size >= *out_size);
+        buffer[0] = piv_size;
+        memcpy(buffer + 1, piv, piv_size);
+    }
+    if (kid_context != NULL) {
+        *out_size += 1 + kid_ctx_size;
+        assert(buf_size >= *out_size);
+        buffer[0] |= 1u << 4u;
+        buffer[piv_size + 1] = kid_ctx_size;
+        memcpy(buffer + 2 + piv_size, kid_context, kid_ctx_size);
+    }
+    if (kid != NULL) {
+        *out_size += kid_size;
+        assert(buf_size >= *out_size);
+        buffer[0] |= 1u << 3u;
+        memcpy(buffer + 2 + piv_size + kid_ctx_size, kid, kid_size);
+    }
+}

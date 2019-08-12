@@ -4,6 +4,8 @@
 // rfc8152 Table 10
 #define AES_CCM_16_64_128 10
 
+#define OSCORE_VERSION 1
+
 typedef struct info_t {
     const uint8_t *id;
     const size_t id_size;
@@ -75,5 +77,12 @@ void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t
  * @param nonce Output buffer, where nonce is written to
  */
 void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint8_t *nonce);
+
+void encode_aad_array(const uint8_t *r_kid, size_t r_kid_size, const uint8_t *r_piv, size_t r_piv_size,
+                      const uint8_t *options, size_t options_size, uint8_t *buffer, size_t buf_size, size_t *out_size);
+
+void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *kid, size_t kid_size,
+                            const uint8_t *kid_context, size_t kid_ctx_size, uint8_t *buffer, size_t buf_size,
+                            size_t *out_size);
 
 #endif //OSCORE_OSCORE_H

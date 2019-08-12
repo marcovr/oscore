@@ -142,6 +142,33 @@ void cose_encode_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_
     //free(prot_header);
 }
 
+void cose_compress_encrypted(cose_encrypt0 *enc0, uint8_t *key, uint8_t *iv, size_t iv_size, uint8_t *out,
+                             size_t buf_size, size_t *out_size) {
+    assert(buf_size >= enc0->plaintext_size + TAG_SIZE);
+
+    // Compute aad
+    uint8_t aad[64];
+    size_t aad_size;
+    cose_enc0_structure(enc0->protected_header, enc0->protected_header_size, enc0->external_aad, enc0->external_aad_size, aad, sizeof(aad), &aad_size);
+
+    // Encrypt
+#if defined(USE_CRYPTOAUTH)
+    ATCA_STATUS status = ATCA_GEN_FAIL;
+    atca_aes_gcm_ctx_t aes_gcm_ctx;
+    status = atcab_aes_gcm_init(&aes_gcm_ctx, ATCA_TEMPKEY_KEYID, 0, iv, iv_size);
+    status = atcab_aes_gcm_aad_update(&aes_gcm_ctx, aad, aad_size);
+    status = atcab_aes_gcm_encrypt_update(&aes_gcm_ctx, enc0->plaintext, enc0->plaintext_size, out);
+    status = atcab_aes_gcm_encrypt_finish(&aes_gcm_ctx, out + enc0->plaintext_size, TAG_SIZE);
+#elif defined(USE_WOLFSSL)
+    Aes aes;
+    wc_AesCcmSetKey(&aes, key, 16);
+    wc_AesCcmEncrypt(&aes, out, enc0->plaintext, enc0->plaintext_size, iv, iv_size,
+            out + enc0->plaintext_size, TAG_SIZE, aad, aad_size);
+#endif
+
+    *out_size = enc0->plaintext_size + TAG_SIZE;
+}
+
 void cose_enc0_structure(uint8_t* body_protected, size_t body_protected_size, uint8_t* external_aad, size_t external_aad_size,
                          uint8_t* out, size_t buf_size, size_t* out_size) {
 
