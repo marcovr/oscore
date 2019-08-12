@@ -1,6 +1,7 @@
 #include "oscore_test.h"
 #include "utils.h"
 #include "oscore.h"
+#include "cose.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -200,4 +201,93 @@ int oscore_context_test_3() {
     int nc = memcmp(nonce, expected_nonce, sizeof(expected_nonce));
 
     return sk || rk || iv || nc;
+}
+
+//rfc8613#appendix-C.4
+int oscore_request_test_1() {
+    uint8_t coap_msg[22] = {0x44, 0x01, 0x5d, 0x1f, 0x00, 0x00, 0x39, 0x74, 0x39, 0x6c, 0x6f,
+                        0x63, 0x61, 0x6c, 0x68, 0x6f, 0x73, 0x74, 0x83, 0x74, 0x76, 0x31};
+    uint8_t common_IV[13] = {0x46, 0x22, 0xd4, 0xdd, 0x6d, 0x94, 0x41, 0x68, 0xee, 0xfb, 0x54, 0x98, 0x7c};
+    uint8_t sender_key[16] = {0xf0, 0x91, 0x0e, 0xd7, 0x29, 0x5e, 0x6a, 0xd4,
+                              0xb5, 0x4f, 0xc7, 0x93, 0x15, 0x43, 0x02, 0xff};
+    uint8_t sender_id[0] = {};
+    uint32_t sender_sequence_num = 20;
+
+    uint8_t expected_piv[1] = {0x14};
+    uint8_t expected_aad_arr[8] = {0x85, 0x01, 0x81, 0x0a, 0x40, 0x41, 0x14, 0x40};
+    uint8_t expected_aad[20] = {0x83, 0x68, 0x45, 0x6e, 0x63, 0x72, 0x79, 0x70, 0x74, 0x30,
+                                0x40, 0x48, 0x85, 0x01, 0x81, 0x0a, 0x40, 0x41, 0x14, 0x40};
+    uint8_t expected_plaintext[5] = {0x01, 0xb3, 0x74, 0x76, 0x31};
+    uint8_t expected_enc_key[16] = {0xf0, 0x91, 0x0e, 0xd7, 0x29, 0x5e, 0x6a, 0xd4,
+                                    0xb5, 0x4f, 0xc7, 0x93, 0x15, 0x43, 0x02, 0xff};
+    uint8_t expected_nonce[13] = {0x46, 0x22, 0xd4, 0xdd, 0x6d, 0x94, 0x41, 0x68, 0xee, 0xfb, 0x54, 0x98, 0x68};
+
+    uint8_t expected_oscore_opt[2] = {0x09, 0x14};
+    uint8_t expected_ciphertext[13] = {0x61, 0x2f, 0x10, 0x92, 0xf1, 0x77, 0x6f, 0x1c, 0x16, 0x68, 0xb3, 0x82, 0x5e};
+    uint8_t expected_oscore_msg[35] = {0x44, 0x02, 0x5d, 0x1f, 0x00, 0x00, 0x39, 0x74, 0x39, 0x6c, 0x6f, 0x63, 0x61,
+                                      0x6c, 0x68, 0x6f, 0x73, 0x74, 0x62, 0x09, 0x14, 0xff, 0x61, 0x2f, 0x10, 0x92,
+                                      0xf1, 0x77, 0x6f, 0x1c, 0x16, 0x68, 0xb3, 0x82, 0x5e};
+
+    oscore_c_ctx_t c_ctx = {
+            .alg_aead = AES_CCM_16_64_128,
+            .common_iv = common_IV,
+            .common_iv_size = sizeof(common_IV)
+    };
+    oscore_s_ctx_t s_ctx = {
+            .id = sender_id,
+            .id_size = sizeof(sender_id),
+            .key = sender_key,
+            .key_size = sizeof(sender_key),
+            .sequence_number = sender_sequence_num
+    };
+    uint8_t nonce[sizeof(common_IV)];
+    derive_nonce(&c_ctx, &s_ctx, nonce);
+
+    printf("\nNonce\n");
+    phex(nonce, sizeof(nonce));
+    phex(expected_nonce, sizeof(expected_nonce));
+    
+    uint8_t aad_arr[8];
+    size_t aad_arr_size;
+    encode_aad_array(NULL, 0, expected_piv, sizeof(expected_piv), NULL, 0, aad_arr,
+            sizeof(aad_arr), &aad_arr_size);
+
+    printf("\nAAD array\n");
+    phex(aad_arr, aad_arr_size);
+    phex(expected_aad_arr, sizeof(expected_aad_arr));
+
+    cose_encrypt0 enc = {
+            .external_aad = aad_arr,
+            .external_aad_size = aad_arr_size,
+            .plaintext = expected_plaintext,
+            .plaintext_size = sizeof(expected_plaintext)
+    };
+
+    uint8_t ciphertext[100];
+    size_t ciphertext_size;
+    cose_compress_encrypted(&enc, sender_key, nonce, sizeof(nonce), ciphertext, sizeof(ciphertext),
+            &ciphertext_size);
+
+    printf("\nCiphertext\n");
+    phex(ciphertext, ciphertext_size);
+    phex(expected_ciphertext, sizeof(expected_ciphertext));
+
+    uint8_t oscore_opt[10];
+    size_t oscore_opt_size;
+    generate_oscore_option(expected_piv, sizeof(expected_piv), sender_id, sizeof(sender_id), NULL, 0,
+            oscore_opt, sizeof(oscore_opt), &oscore_opt_size);
+
+    printf("\nOSCORE option value\n");
+    phex(oscore_opt, oscore_opt_size);
+    phex(expected_oscore_opt, sizeof(expected_oscore_opt));
+    printf("\n");
+
+    // TODO: complete test
+
+    int nc = memcmp(nonce, expected_nonce, sizeof(expected_nonce));
+    int ar = memcmp(aad_arr, expected_aad_arr, sizeof(expected_aad_arr));
+    int ci = memcmp(ciphertext, expected_ciphertext, sizeof(expected_ciphertext));
+    int oo = memcmp(oscore_opt, expected_oscore_opt, sizeof(expected_oscore_opt));
+
+    return nc || ar || ci || oo;
 }

@@ -20,3 +20,7 @@ TEST_CASE("OSCORE context test", "[OSCORE]") {
     REQUIRE(oscore_context_test_2() == 0);
     REQUIRE(oscore_context_test_3() == 0);
 }
+
+TEST_CASE("OSCORE request test", "[OSCORE]") {
+    REQUIRE(oscore_request_test_1() == 0);
+}
