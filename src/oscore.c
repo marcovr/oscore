@@ -26,7 +26,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
     size_t info_size;
 
     // Information to derive sender key
-    info_t info_S = {
+    oscore_hkdf_info_t info_S = {
             .id = s_ctx->id,
             .id_size = s_ctx->id_size,
             .id_context = c_ctx->id_context,
@@ -40,7 +40,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
          s_ctx->key_size);
 
     // Information to derive recipient key
-    info_t info_R = {
+    oscore_hkdf_info_t info_R = {
             .id = r_ctx->id,
             .id_size = r_ctx->id_size,
             .id_context = c_ctx->id_context,
@@ -54,7 +54,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
          r_ctx->key_size);
 
     // Information to derive common IV
-    info_t info_IV = {
+    oscore_hkdf_info_t info_IV = {
             .id_context = c_ctx->id_context,
             .id_ctx_size = c_ctx->id_ctx_size,
             .alg_aead = c_ctx->alg_aead,
@@ -67,7 +67,7 @@ void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t
 }
 
 // Encodes the given info structure as a CBOR array.
-void encode_info(const info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size) {
+void encode_info(const oscore_hkdf_info_t *info, uint8_t *buffer, size_t buf_size, size_t *out_size) {
     /*
      *    info = [
      *        id : bstr,
