@@ -110,7 +110,9 @@ void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t
 // Derives the AEAD nonce from the OSCORE context.
 void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint8_t *nonce) {
     size_t nonce_length = c_ctx->common_iv_size;
-    uint32_t partial_IV = htonl(s_ctx->sequence_number); // Partial IV is in network byte order (Big Endian)
+    uint8_t partial_iv[OSCORE_PIV_MAX_SIZE];
+    size_t partial_iv_size;
+    uint64_to_partial_iv(s_ctx->sequence_number, partial_iv, &partial_iv_size);
 
     /*
      *         <- nonce length minus 6 B -> <-- 5 bytes -->
@@ -120,7 +122,7 @@ void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint
      */
     memset(nonce, 0, nonce_length);
     nonce[0] = s_ctx->id_size;
-    memcpy(nonce + nonce_length - sizeof(partial_IV), &partial_IV, sizeof(partial_IV));
+    memcpy(nonce + nonce_length - partial_iv_size, &partial_iv, partial_iv_size);
     memcpy(nonce + nonce_length - 5 - s_ctx->id_size, s_ctx->id, s_ctx->id_size);
 
     // XOR with common IV
@@ -204,4 +206,20 @@ void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *
         buffer[0] |= 1u << 3u;
         memcpy(buffer + 2 + piv_size + kid_ctx_size, kid, kid_size);
     }
+}
+
+void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size) {
+    size_t size = 0;
+    int max_offset = 1u << OSCORE_PIV_MAX_SIZE;
+    
+    // PIV is required to be in Network Byte Order (Big Endian).
+    // Since the source is most likely stored as Little Endian, memcpy would produce a wrong result.
+    // Also, the partial IV can be up to (currently) 5 bytes long, thus htonl() doesn't work.
+    for (uint64_t i = max_offset; i >= 8; i -= 8) {
+        if (source >= (1ul << i)) {
+            piv[size++] = source >> i;
+        }
+    }
+    piv[size++] = source;
+    *out_size = size;
 }

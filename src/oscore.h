@@ -5,6 +5,7 @@
 #define AES_CCM_16_64_128 10
 
 #define OSCORE_VERSION 1
+#define OSCORE_PIV_MAX_SIZE 5u
 
 typedef struct info_t {
     const uint8_t *id;
@@ -40,7 +41,7 @@ typedef struct oscore_s_ctx_t {
     const size_t id_size;
     uint8_t *key;
     const size_t key_size;
-    uint32_t sequence_number;
+    uint64_t sequence_number;
 } oscore_s_ctx_t;
 
 /**
@@ -84,5 +85,7 @@ void encode_aad_array(const uint8_t *r_kid, size_t r_kid_size, const uint8_t *r_
 void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *kid, size_t kid_size,
                             const uint8_t *kid_context, size_t kid_ctx_size, uint8_t *buffer, size_t buf_size,
                             size_t *out_size);
+
+void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size);
 
 #endif //OSCORE_OSCORE_H

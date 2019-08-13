@@ -246,11 +246,13 @@ int oscore_request_test_1() {
     printf("\nNonce\n");
     phex(nonce, sizeof(nonce));
     phex(expected_nonce, sizeof(expected_nonce));
-    
+
+    uint8_t piv[OSCORE_PIV_MAX_SIZE];
+    size_t piv_size;
     uint8_t aad_arr[8];
     size_t aad_arr_size;
-    encode_aad_array(NULL, 0, expected_piv, sizeof(expected_piv), NULL, 0, aad_arr,
-            sizeof(aad_arr), &aad_arr_size);
+    uint64_to_partial_iv(sender_sequence_num, piv, &piv_size);
+    encode_aad_array(NULL, 0, piv, piv_size, NULL, 0, aad_arr, sizeof(aad_arr), &aad_arr_size);
 
     printf("\nAAD array\n");
     phex(aad_arr, aad_arr_size);
@@ -274,7 +276,7 @@ int oscore_request_test_1() {
 
     uint8_t oscore_opt[10];
     size_t oscore_opt_size;
-    generate_oscore_option(expected_piv, sizeof(expected_piv), sender_id, sizeof(sender_id), NULL, 0,
+    generate_oscore_option(piv, piv_size, sender_id, sizeof(sender_id), NULL, 0,
             oscore_opt, sizeof(oscore_opt), &oscore_opt_size);
 
     printf("\nOSCORE option value\n");
