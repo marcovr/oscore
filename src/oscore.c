@@ -20,7 +20,7 @@
     #include <wolfssl/wolfcrypt/hmac.h>
 #endif
 
-/** Array of supported AEAD algorithms.*/
+// Array of supported AEAD algorithms.
 const int32_t OSCORE_AEAD_algs[1] = {AES_CCM_16_64_128};
 const size_t OSCORE_AEAD_algs_size = sizeof(OSCORE_AEAD_algs) / sizeof(int32_t);
 
@@ -172,6 +172,7 @@ void encode_aad_array(const oscore_ext_aad_t *ext_aad, uint8_t *buffer, size_t b
     *out_size = cbor_encoder_get_buffer_size(&enc, buffer);
 }
 
+// Encodes the external AAD as a CBOR array.
 void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *kid, size_t kid_size,
         const uint8_t *kid_context, size_t kid_ctx_size, uint8_t *buffer, size_t buf_size, size_t *out_size) {
     assert(piv_size < 6);
@@ -216,6 +217,7 @@ void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *
     }
 }
 
+// Transforms the source value (Sender Sequence Number) into the partial IV.
 void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size) {
     size_t size = 0;
     int max_offset = 1u << OSCORE_PIV_MAX_SIZE;
