@@ -15,6 +15,10 @@
 /** Sender Sequence Number is used as PIV and has to be smaller than 2^40 (5 bytes). See rfc8613#section-7.2.1 */
 #define OSCORE_PIV_MAX_SIZE 5u
 
+/** Array of supported AEAD algorithms.*/
+extern const int32_t OSCORE_AEAD_algs[1];
+extern const size_t OSCORE_AEAD_algs_size;
+
 /**
  * Information structure used for the HKDF to derive OSCORE context data.
  */
@@ -27,6 +31,21 @@ typedef struct oscore_hkdf_info_t {
     const char *type;
     const uint32_t L;
 } oscore_hkdf_info_t;
+
+/**
+ * Structure used to build the external AAD array.
+ */
+typedef struct oscore_ext_aad_t {
+    const uint32_t oscore_version; /**< Optional, default is OSCORE_VERSION */
+    const int32_t* algorithms; /**< Optional, default is OSCORE_AEAD_algs */
+    const size_t algorithms_size; /**< Optional, default is OSCORE_AEAD_algs_size */
+    const uint8_t  *request_kid;
+    const size_t request_kid_size;
+    const uint8_t *request_piv;
+    const size_t request_piv_size;
+    const uint8_t *options;
+    const size_t options_size;
+} oscore_ext_aad_t;
 
 /**
  * Common OSCORE context. Contains shared information.
@@ -110,8 +129,7 @@ void HKDF(const uint8_t *secret, size_t secret_size, const uint8_t *salt, size_t
  */
 void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint8_t *nonce);
 
-void encode_aad_array(const uint8_t *r_kid, size_t r_kid_size, const uint8_t *r_piv, size_t r_piv_size,
-                      const uint8_t *options, size_t options_size, uint8_t *buffer, size_t buf_size, size_t *out_size);
+void encode_aad_array(const oscore_ext_aad_t *ext_aad, uint8_t *buffer, size_t buf_size, size_t *out_size);
 
 void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *kid, size_t kid_size,
                             const uint8_t *kid_context, size_t kid_ctx_size, uint8_t *buffer, size_t buf_size,

@@ -252,7 +252,12 @@ int oscore_request_test_1() {
     uint8_t aad_arr[8];
     size_t aad_arr_size;
     uint64_to_partial_iv(sender_sequence_num, piv, &piv_size);
-    encode_aad_array(NULL, 0, piv, piv_size, NULL, 0, aad_arr, sizeof(aad_arr), &aad_arr_size);
+
+    oscore_ext_aad_t ext_aad = {
+            .request_piv = piv,
+            .request_piv_size = piv_size
+    };
+    encode_aad_array(&ext_aad, aad_arr, sizeof(aad_arr), &aad_arr_size);
 
     printf("\nAAD array\n");
     phex(aad_arr, aad_arr_size);

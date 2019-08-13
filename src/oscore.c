@@ -20,6 +20,10 @@
     #include <wolfssl/wolfcrypt/hmac.h>
 #endif
 
+/** Array of supported AEAD algorithms.*/
+const int32_t OSCORE_AEAD_algs[1] = {AES_CCM_16_64_128};
+const size_t OSCORE_AEAD_algs_size = sizeof(OSCORE_AEAD_algs) / sizeof(int32_t);
+
 // Derives OSCORE context keys & common IV.
 void derive_context(oscore_c_ctx_t *c_ctx, oscore_s_ctx_t *s_ctx, oscore_r_ctx_t *r_ctx) {
     uint8_t info[20]; // TODO: determine useful size. Min 6 for CBOR + space for ints & bytes
@@ -131,8 +135,7 @@ void derive_nonce(const oscore_c_ctx_t *c_ctx, const oscore_s_ctx_t *s_ctx, uint
     }
 }
 
-void encode_aad_array(const uint8_t *r_kid, size_t r_kid_size, const uint8_t *r_piv, size_t r_piv_size,
-        const uint8_t *options, size_t options_size, uint8_t *buffer, size_t buf_size, size_t *out_size) {
+void encode_aad_array(const oscore_ext_aad_t *ext_aad, uint8_t *buffer, size_t buf_size, size_t *out_size) {
     /*
      *    aad_array = [
      *        oscore_version : uint,
@@ -148,17 +151,22 @@ void encode_aad_array(const uint8_t *r_kid, size_t r_kid_size, const uint8_t *r_
     CborEncoder ary;
     cbor_encoder_create_array(&enc, &ary, 5);
 
-    cbor_encode_uint(&ary, OSCORE_VERSION);
+    uint32_t oscore_version = ext_aad->oscore_version != 0 ? ext_aad->oscore_version : OSCORE_VERSION;
+    cbor_encode_uint(&ary, oscore_version);
 
     // Array of supported AEAD algorithms
+    const int32_t *aead_algs = ext_aad->algorithms != NULL ? ext_aad->algorithms : OSCORE_AEAD_algs;
+    size_t aead_algs_size = ext_aad->algorithms_size != 0 ? ext_aad->algorithms_size : OSCORE_AEAD_algs_size;
     CborEncoder alg;
-    cbor_encoder_create_array(&ary, &alg, 1);
-    cbor_encode_int(&alg, AES_CCM_16_64_128);
+    cbor_encoder_create_array(&ary, &alg, aead_algs_size);
+    for (size_t i = 0; i < aead_algs_size; ++i) {
+        cbor_encode_int(&alg, aead_algs[i]);
+    }
     cbor_encoder_close_container(&ary, &alg);
 
-    cbor_encode_byte_string(&ary, r_kid, r_kid_size);
-    cbor_encode_byte_string(&ary, r_piv, r_piv_size);
-    cbor_encode_byte_string(&ary, options, options_size);
+    cbor_encode_byte_string(&ary, ext_aad->request_kid, ext_aad->request_kid_size);
+    cbor_encode_byte_string(&ary, ext_aad->request_piv, ext_aad->request_piv_size);
+    cbor_encode_byte_string(&ary, ext_aad->options, ext_aad->options_size);
 
     cbor_encoder_close_container(&enc, &ary);
     *out_size = cbor_encoder_get_buffer_size(&enc, buffer);
@@ -211,7 +219,7 @@ void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *
 void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size) {
     size_t size = 0;
     int max_offset = 1u << OSCORE_PIV_MAX_SIZE;
-    
+
     // PIV is required to be in Network Byte Order (Big Endian).
     // Since the source is most likely stored as Little Endian, memcpy would produce a wrong result.
     // Also, the partial IV can be up to (currently) 5 bytes long, thus htonl() doesn't work.
