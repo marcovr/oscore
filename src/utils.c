@@ -2,8 +2,28 @@
 #include <stdio.h>
 #include <stdlib.h>
 #include <string.h>
+#include <ctype.h>
 
-void phex(uint8_t* ary, size_t len) {
+void print_diag(const uint8_t* buf, size_t len) {
+    int printable = 1;
+    for (size_t i = 0; i < len; ++i) {
+        if (!isprint(buf[i])) {
+            printable = 0;
+        }
+    }
+
+    if (printable) {
+        char xbuf[len + 1];
+        xbuf[len] = 0;
+        memcpy(xbuf, buf, len);
+        printf("%s\n", xbuf);
+    } else {
+        printf("0x");
+        phex(buf, len);
+    }
+}
+
+void phex(const uint8_t* ary, size_t len) {
     for (size_t i = 0; i < len; i++) {
         printf("%02x", ary[i]);
     }

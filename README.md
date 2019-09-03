@@ -18,10 +18,24 @@ make
 sudo make install
 ```
 
+### libcoap
+```
+git clone https://github.com/obgm/libcoap.git && cd libcoap
+./autogen.sh
+./configure --disable-manpages
+make
+sudo make install
+```
+
 ### Catch2
 Used to run test cases.
 ```
 sudo apt install catch
+```
+
+## To update the dynamic library list
+```
+sudo ldconfig
 ```
 
 ## Building
@@ -33,5 +47,5 @@ make
 
 ## Running tests
 ```
-./src/edhoc-test
+./src/tests
 ```

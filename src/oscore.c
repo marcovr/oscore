@@ -5,10 +5,11 @@
  * OSCORE methods
  */
 
-#include <netinet/in.h>
+#include <coap2/coap.h>
 #include <tinycbor/cbor.h>
 #include "oscore.h"
 #include "utils.h"
+#include "coap.h"
 
 #if defined(USE_CRYPTOAUTH)
     #include "cryptoauthlib.h"
@@ -232,4 +233,38 @@ void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size) {
     }
     piv[size++] = source;
     *out_size = size;
+}
+
+void oscore_construct_payload(const uint8_t *buf, size_t length, uint8_t *payload, size_t *payload_length) {
+    coap_pdu_t *pdu = NULL;
+    coap_parse_bytes(buf, length, &pdu);
+
+    coap_pdu_t *inner_pdu = coap_pdu_init(0, 0, 0, COAP_DEFAULT_MTU);
+    inner_pdu->code = pdu->code;
+
+    coap_opt_iterator_t opt_iter;
+    coap_option_iterator_init(pdu, &opt_iter, COAP_OPT_ALL);
+    coap_opt_t *option = NULL;
+    while ((option = coap_option_next(&opt_iter))) {
+        if (opt_iter.type == 11) { // TODO: add more options
+            coap_add_option(inner_pdu, opt_iter.type, coap_opt_length(option), coap_opt_value(option));
+        }
+    }
+    size_t len = 0;
+    uint8_t *data = NULL;
+    coap_get_data(pdu, &len, &data);
+    coap_add_data(inner_pdu, len, data);
+
+    size_t pdu_len;
+    uint8_t *pdu_buf = NULL;
+    coap_pdu_to_bytes(inner_pdu, &pdu_buf, &pdu_len);
+
+    payload[0] = inner_pdu->code;
+
+    // Works because header is not encoded and thus hdr_size = 0
+    memcpy(payload + 1, pdu_buf, pdu_len + 1);
+    *payload_length = pdu_len + 1;
+
+    coap_delete_pdu(pdu);
+    coap_delete_pdu(inner_pdu);
 }

@@ -7,9 +7,9 @@ set(CMAKE_RUNTIME_OUTPUT_DIRECTORY ${CMAKE_CURRENT_SOURCE_DIR}/build)
 set(MONGOOSE_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/mongoose)
 set(CRYPTOAUTH_SOURCE_DIR ${CMAKE_CURRENT_SOURCE_DIR}/cryptoauthlib)
 
-add_library(mongoose STATIC ${MONGOOSE_SOURCE_DIR}/mongoose.c)
-target_compile_definitions(mongoose PUBLIC MG_ENABLE_COAP)
-target_include_directories(mongoose PUBLIC ${MONGOOSE_SOURCE_DIR})
+#add_library(mongoose STATIC ${MONGOOSE_SOURCE_DIR}/mongoose.c)
+#target_compile_definitions(mongoose PUBLIC MG_ENABLE_COAP)
+#target_include_directories(mongoose PUBLIC ${MONGOOSE_SOURCE_DIR})
 
 find_package(Doxygen)
 if (DOXYGEN_FOUND)

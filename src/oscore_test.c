@@ -2,6 +2,7 @@
 #include "utils.h"
 #include "oscore.h"
 #include "cose.h"
+#include "coap.h"
 #include <stdio.h>
 #include <string.h>
 
@@ -263,11 +264,19 @@ int oscore_request_test_1() {
     phex(aad_arr, aad_arr_size);
     phex(expected_aad_arr, sizeof(expected_aad_arr));
 
+    size_t plaintext_size;
+    uint8_t plaintext[10];
+    oscore_construct_payload(coap_msg, sizeof(coap_msg), plaintext, &plaintext_size);
+
+    printf("\nPlaintext\n");
+    phex(plaintext, plaintext_size);
+    phex(expected_plaintext, sizeof(expected_plaintext));
+
     cose_encrypt0 enc = {
             .external_aad = aad_arr,
             .external_aad_size = aad_arr_size,
-            .plaintext = expected_plaintext,
-            .plaintext_size = sizeof(expected_plaintext)
+            .plaintext = plaintext,
+            .plaintext_size = plaintext_size
     };
 
     uint8_t ciphertext[100];
@@ -293,8 +302,9 @@ int oscore_request_test_1() {
 
     int nc = memcmp(nonce, expected_nonce, sizeof(expected_nonce));
     int ar = memcmp(aad_arr, expected_aad_arr, sizeof(expected_aad_arr));
+    int pt = memcmp(plaintext, expected_plaintext, sizeof(expected_plaintext));
     int ci = memcmp(ciphertext, expected_ciphertext, sizeof(expected_ciphertext));
     int oo = memcmp(oscore_opt, expected_oscore_opt, sizeof(expected_oscore_opt));
 
-    return nc || ar || ci || oo;
+    return nc || ar || pt || ci || oo;
 }

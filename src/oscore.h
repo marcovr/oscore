@@ -166,4 +166,6 @@ void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *
  */
 void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size);
 
+void oscore_construct_payload(const uint8_t *buf, size_t length, uint8_t *payload, size_t *payload_length);
+
 #endif //OSCORE_OSCORE_H

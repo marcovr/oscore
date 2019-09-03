@@ -4,7 +4,8 @@
 #include <stdint.h>
 #include <stddef.h>
 
-void phex(uint8_t* ary, size_t len);
+void print_diag(const uint8_t* buf, size_t len);
+void phex(const uint8_t* ary, size_t len);
 void parr(char *txt);
 
 size_t buffer_to_hexstring(char** string, uint8_t* buffer, size_t buf_len);
