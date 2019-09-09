@@ -264,12 +264,18 @@ int oscore_request_test_1() {
     phex(aad_arr, aad_arr_size);
     phex(expected_aad_arr, sizeof(expected_aad_arr));
 
-    size_t plaintext_size;
-    uint8_t plaintext[10];
-    oscore_construct_payload(coap_msg, sizeof(coap_msg), plaintext, &plaintext_size);
+    size_t plaintext_size = 10;
+    uint8_t plaintext[plaintext_size];
+    coap_rw_buffer_t payload = {
+            .len = plaintext_size,
+            .p = plaintext
+    };
+    coap_packet_t pdu;
+    coap_parse(&pdu, coap_msg, sizeof(coap_msg));
+    oscore_construct_payload(&pdu, &payload);
 
     printf("\nPlaintext\n");
-    phex(plaintext, plaintext_size);
+    phex(plaintext, plaintext_size = payload.len);
     phex(expected_plaintext, sizeof(expected_plaintext));
 
     cose_encrypt0 enc = {
@@ -279,7 +285,7 @@ int oscore_request_test_1() {
             .plaintext_size = plaintext_size
     };
 
-    uint8_t ciphertext[100];
+    uint8_t ciphertext[sizeof(expected_ciphertext)];
     size_t ciphertext_size;
     cose_compress_encrypted(&enc, sender_key, nonce, sizeof(nonce), ciphertext, sizeof(ciphertext),
             &ciphertext_size);
@@ -288,7 +294,7 @@ int oscore_request_test_1() {
     phex(ciphertext, ciphertext_size);
     phex(expected_ciphertext, sizeof(expected_ciphertext));
 
-    uint8_t oscore_opt[10];
+    uint8_t oscore_opt[sizeof(expected_oscore_opt)];
     size_t oscore_opt_size;
     generate_oscore_option(piv, piv_size, sender_id, sizeof(sender_id), NULL, 0,
             oscore_opt, sizeof(oscore_opt), &oscore_opt_size);
@@ -300,11 +306,26 @@ int oscore_request_test_1() {
 
     // TODO: complete test
 
+
+    uint8_t oscore_msg[sizeof(expected_oscore_msg)];
+    size_t oscore_msg_size;
+    oscore_ctx_t ctx = {
+            .common = &c_ctx,
+            .sender = &s_ctx
+    };
+    oscore_protect(ctx, coap_msg, sizeof(coap_msg), oscore_msg, sizeof(oscore_msg), &oscore_msg_size);
+
+    printf("OSCORE\n");
+    phex(oscore_msg, oscore_msg_size);
+    phex(expected_oscore_msg, sizeof(expected_oscore_msg));
+
+
     int nc = memcmp(nonce, expected_nonce, sizeof(expected_nonce));
     int ar = memcmp(aad_arr, expected_aad_arr, sizeof(expected_aad_arr));
     int pt = memcmp(plaintext, expected_plaintext, sizeof(expected_plaintext));
     int ci = memcmp(ciphertext, expected_ciphertext, sizeof(expected_ciphertext));
     int oo = memcmp(oscore_opt, expected_oscore_opt, sizeof(expected_oscore_opt));
+    int om = memcmp(oscore_msg, expected_oscore_msg, sizeof(expected_oscore_msg));
 
-    return nc || ar || pt || ci || oo;
+    return nc || ar || pt || ci || oo || om;
 }

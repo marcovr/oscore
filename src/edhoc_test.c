@@ -137,6 +137,10 @@ int edhoc_test() {
     uint8_t message2_buf[512];
     uint8_t message3_buf[512];
     size_t message1_len = initiate_edhoc(&edhoc_u_ctx, message1_buf, 512);
+
+    printf("\n\n MSG1: ");
+    phex(message1_buf, message1_len);
+
     size_t message2_len = edhoc_handler_message_1(&edhoc_v_ctx, message1_buf, message1_len, message2_buf, 512);
     size_t message3_len = edhoc_handler_message_2(&edhoc_u_ctx, message2_buf, message2_len, message3_buf, 512);
     edhoc_handler_message_3(&edhoc_v_ctx, message3_buf, message3_len);

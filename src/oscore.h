@@ -8,6 +8,8 @@
 #ifndef OSCORE_OSCORE_H
 #define OSCORE_OSCORE_H
 
+#include "coap.h"
+
 /**
  * Algorithm number for AES-CCM mode with 128-bit key, 64-bit tag, 13-byte nonce.
  * @see https://tools.ietf.org/html/rfc8152#section-10.2
@@ -23,6 +25,8 @@
  * @see https://tools.ietf.org/html/rfc8613#section-7.2.1
  */
 #define OSCORE_PIV_MAX_SIZE 5u
+
+#define OSCORE_OPT_MAX_SIZE 255u
 
 /** Array of supported AEAD algorithms.*/
 extern const int32_t OSCORE_AEAD_algs[1];
@@ -93,6 +97,12 @@ typedef struct oscore_r_ctx_t {
     const size_t key_size;
     void *replay_window; /**< Not correctly implemented yet*/
 } oscore_r_ctx_t;
+
+typedef struct oscore_ctx_t {
+    oscore_c_ctx_t *common;
+    oscore_s_ctx_t *sender;
+    oscore_r_ctx_t *recipient;
+} oscore_ctx_t;
 
 /**
  * Derives OSCORE context keys & common IV. The Master Secret & Salt need to be given, as well as information about
@@ -166,6 +176,11 @@ void generate_oscore_option(const uint8_t *piv, size_t piv_size, const uint8_t *
  */
 void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size);
 
-void oscore_construct_payload(const uint8_t *buf, size_t length, uint8_t *payload, size_t *payload_length);
+void oscore_construct_payload(const coap_packet_t *pdu, coap_rw_buffer_t *payload);
+void oscore_build_message(coap_packet_t *pdu, coap_buffer_t oscore_opt, coap_buffer_t payload,
+                          uint8_t *buf, size_t buf_size, size_t *out_size);
+void oscore_protect(oscore_ctx_t ctx, uint8_t *buf_in, size_t buf_in_size, uint8_t *buf, size_t buf_size, size_t
+*out_size);
+coap_buffer_t freeze_buffer(coap_rw_buffer_t buf);
 
 #endif //OSCORE_OSCORE_H

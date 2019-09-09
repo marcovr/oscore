@@ -4,12 +4,12 @@ option(WITH_CRYPTOAUTH "use CryptoAuthLib" OFF)
 option(WITH_WOLFSSL "use wolfSSL" ON)
 
 set(SOURCES utils.c utils.h cwt.c cwt.h utils.c utils.h edhoc_protocol.c edhoc_protocol.h edhoc.c edhoc.h types.h
-        cose.c cose.h oscore.c oscore.h coap.c coap.h)
+        cose.c cose.h oscore.c oscore.h coap.c coap.h microcoap.c microcoap.h)
 
 add_executable(tests ${SOURCES} tests.cpp edhoc_test.c edhoc_test.h oscore_test.c oscore_test.h cose_test.c cose_test.h)
 add_library(oscore ${SOURCES})
 
-set(LIBS tinycbor coap-2-openssl)
+set(LIBS tinycbor)
 
 if(WITH_CRYPTOAUTH)
     message(STATUS "WITH_CRYPTOAUTH")

@@ -5,11 +5,10 @@
  * OSCORE methods
  */
 
-#include <coap2/coap.h>
 #include <tinycbor/cbor.h>
 #include "oscore.h"
 #include "utils.h"
-#include "coap.h"
+#include "cose.h"
 
 #if defined(USE_CRYPTOAUTH)
     #include "cryptoauthlib.h"
@@ -235,36 +234,119 @@ void uint64_to_partial_iv(uint64_t source, uint8_t *piv, size_t *out_size) {
     *out_size = size;
 }
 
-void oscore_construct_payload(const uint8_t *buf, size_t length, uint8_t *payload, size_t *payload_length) {
-    coap_pdu_t *pdu = NULL;
-    coap_parse_bytes(buf, length, &pdu);
-
-    coap_pdu_t *inner_pdu = coap_pdu_init(0, 0, 0, COAP_DEFAULT_MTU);
-    inner_pdu->code = pdu->code;
-
-    coap_opt_iterator_t opt_iter;
-    coap_option_iterator_init(pdu, &opt_iter, COAP_OPT_ALL);
-    coap_opt_t *option = NULL;
-    while ((option = coap_option_next(&opt_iter))) {
-        if (opt_iter.type == 11) { // TODO: add more options
-            coap_add_option(inner_pdu, opt_iter.type, coap_opt_length(option), coap_opt_value(option));
+void oscore_construct_payload(const coap_packet_t *pdu, coap_rw_buffer_t *payload) {
+    coap_packet_t inner_pdu = {0};
+    for (int i = 0; i < pdu->numopts; ++i) {
+        coap_option_t option = pdu->opts[i];
+        if (option.num == COAP_OPTION_URI_PATH) { // TODO: add more options
+            inner_pdu.opts[inner_pdu.numopts++] = option;
         }
     }
     size_t len = 0;
     uint8_t *data = NULL;
-    coap_get_data(pdu, &len, &data);
-    coap_add_data(inner_pdu, len, data);
+    inner_pdu.payload = pdu->payload;
 
-    size_t pdu_len;
-    uint8_t *pdu_buf = NULL;
-    coap_pdu_to_bytes(inner_pdu, &pdu_buf, &pdu_len);
+    coap_build(payload->p, &payload->len, &inner_pdu); // TODO: check result
 
-    payload[0] = inner_pdu->code;
+    // compacting payload
+    payload->p[0] = pdu->hdr.code;
+    memmove(payload->p + 1, payload->p + 4, payload->len - 4);
+    payload->len -= 3;
+}
 
-    // Works because header is not encoded and thus hdr_size = 0
-    memcpy(payload + 1, pdu_buf, pdu_len + 1);
-    *payload_length = pdu_len + 1;
+void oscore_build_message(coap_packet_t *pdu, coap_buffer_t oscore_opt, coap_buffer_t payload, uint8_t *buf,
+        size_t buf_size, size_t *out_size) {
+    coap_packet_t oscore_pdu = {
+            .hdr.ver = 1,
+            .hdr.code = COAP_METHOD_POST,
+            .hdr.tkl = pdu->hdr.tkl,
+            .tok = pdu->tok
+    };
 
-    coap_delete_pdu(pdu);
-    coap_delete_pdu(inner_pdu);
+    memcpy(oscore_pdu.hdr.id, pdu->hdr.id, 2);
+    
+    coap_option_t oscore_option = {
+            .num = COAP_OPTION_OSCORE,
+            .buf = oscore_opt
+    };
+    
+
+    for (int i = 0; i < pdu->numopts; ++i) {
+        coap_option_t option = pdu->opts[i];
+        if (option.num > COAP_OPTION_OSCORE) {
+            oscore_pdu.opts[oscore_pdu.numopts++] = oscore_option;
+        }
+        if (option.num != COAP_OPTION_URI_PATH) { // TODO: add more options
+            oscore_pdu.opts[oscore_pdu.numopts++] = option;
+        }
+    }
+    
+    oscore_pdu.payload = payload;
+    
+    *out_size = buf_size;
+    coap_build(buf, out_size, &oscore_pdu);
+}
+
+void oscore_protect(oscore_ctx_t ctx, uint8_t *buf_in, size_t buf_in_size, uint8_t *buf, size_t buf_size, size_t
+*out_size) {
+    uint8_t piv[OSCORE_PIV_MAX_SIZE];
+    size_t piv_size;
+    uint64_to_partial_iv(ctx.sender->sequence_number, piv, &piv_size);
+    uint8_t osc_buf[OSCORE_OPT_MAX_SIZE];
+    size_t osc_out_size;
+    generate_oscore_option(piv, piv_size, ctx.sender->id, ctx.sender->id_size, ctx.common->id_context,
+                           ctx.common->id_ctx_size, osc_buf, OSCORE_OPT_MAX_SIZE, &osc_out_size);
+
+
+    coap_buffer_t osc_opt = {
+            .len = osc_out_size,
+            .p = osc_buf
+    };
+
+    uint8_t temp_buf[100];
+    coap_rw_buffer_t payload = {
+            .p = temp_buf,
+            .len = sizeof(temp_buf)
+    };
+
+    coap_packet_t pdu;
+    coap_parse(&pdu, buf_in, buf_in_size);
+    oscore_construct_payload(&pdu, &payload);
+
+    uint8_t temp_buf2[100];
+    coap_rw_buffer_t ciphertext = {
+            .p = temp_buf2,
+            .len = sizeof(temp_buf2)
+    };
+
+    uint8_t nonce[ctx.common->common_iv_size];
+    derive_nonce(ctx.common, ctx.sender, nonce);
+
+    oscore_ext_aad_t ext_aad = {
+            .request_piv = piv,
+            .request_piv_size = piv_size
+    };
+    uint8_t aad_arr[100];
+    size_t aad_arr_size = sizeof(aad_arr);
+    encode_aad_array(&ext_aad, aad_arr, aad_arr_size, &aad_arr_size);
+    
+    cose_encrypt0 enc = {
+            .external_aad = aad_arr,
+            .external_aad_size = aad_arr_size,
+            .plaintext = payload.p,
+            .plaintext_size = payload.len
+    };
+    
+    cose_compress_encrypted(&enc, ctx.sender->key, nonce, sizeof(nonce), ciphertext.p, ciphertext.len,
+                            &ciphertext.len);
+
+    oscore_build_message(&pdu, osc_opt, freeze_buffer(ciphertext), buf, buf_size, out_size);
+}
+
+coap_buffer_t freeze_buffer(coap_rw_buffer_t buf) {
+    coap_buffer_t out = {
+            .len = buf.len,
+            .p = buf.p
+    };
+    return out;
 }
