@@ -1,3 +1,6 @@
+## :exclamation: NOTICE: This repository is not up to date :exclamation:
+Have a look at [marcovr/edhoc](https://gitlab.com/marcovr/edhoc) and [marcovr/oscore-implementation](https://gitlab.com/marcovr/oscore-implementation) instead.
+
 # OSCORE - Object Security for Constrained RESTful Environments
 [WIP] Proof-of-concept implementation of OSCORE including the EDHOC security profile.
 
